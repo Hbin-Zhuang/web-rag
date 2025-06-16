@@ -1,15 +1,3 @@
----
-title: Web RAG System
-emoji: 📚
-colorFrom: blue
-colorTo: green
-sdk: gradio
-sdk_version: 4.0.0
-app_file: app.py
-pinned: false
-license: mit
----
-
 # 📚 Web RAG System
 
 基于 LangChain 和 Gemini 的轻量级 RAG 系统，支持本地 PDF 文档读取、Web UI 展示，并可部署到 Hugging Face Spaces。
@@ -71,7 +59,7 @@ license: mit
 
 1. **克隆项目**
 ```bash
-git clone <repository-url>
+git clone git@github.com:Hbin-Zhuang/web-rag.git
 cd web-rag
 ```
 
@@ -207,13 +195,6 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
-
-## 📞 支持
-
-如有问题，请在 GitHub Issues 中提出，或通过以下方式联系：
-
-- 📧 Email: [your-email@example.com]
-- 💬 GitHub: [your-github-username]
 
 ---
 
