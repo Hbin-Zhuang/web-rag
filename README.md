@@ -55,6 +55,10 @@
 
 ## 🚀 快速开始
 
+### 环境要求
+- Python 3.8+
+- Google Gemini API密钥
+
 ### 环境配置
 
 1. **克隆项目**
@@ -63,12 +67,23 @@ git clone git@github.com:Hbin-Zhuang/web-rag.git
 cd web-rag
 ```
 
-2. **安装依赖**
+2. **创建虚拟环境**
+```bash
+# 方法1: 使用脚本（推荐）
+./activate_env.sh
+
+# 方法2: 手动创建
+python3 -m venv .venv
+source .venv/bin/activate  # macOS/Linux
+# .venv\Scripts\activate  # Windows
+```
+
+3. **安装依赖**
 ```bash
 pip install -r requirements.txt
 ```
 
-3. **配置API密钥**
+4. **配置API密钥**
 ```bash
 # 复制环境变量示例文件
 cp .env.example .env

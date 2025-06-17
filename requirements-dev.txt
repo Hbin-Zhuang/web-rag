@@ -1,0 +1,23 @@
+# 开发环境依赖
+# 包含生产依赖
+-r requirements.txt
+
+# 代码格式化和检查
+black>=23.0.0
+flake8>=6.0.0
+isort>=5.12.0
+
+# 类型检查
+mypy>=1.0.0
+
+# 测试框架
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# 开发工具
+ipython>=8.0.0
+jupyter>=1.0.0
+
+# 文档生成
+sphinx>=6.0.0
+sphinx-rtd-theme>=1.2.0
