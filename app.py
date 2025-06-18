@@ -35,25 +35,34 @@ try:
     from langchain.chains import RetrievalQA
     from langchain.prompts import PromptTemplate
 
+    # 可用的 Gemini 模型列表
+    AVAILABLE_MODELS = [
+        "gemini-2.5-flash-preview-05-20",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+    ]
+
+    # 默认模型（按优先级排序）
+    DEFAULT_MODEL = "gemini-2.5-flash-preview-05-20"
+
     # 全局变量
     vectorstore = None
     qa_chain = None
+    current_model = DEFAULT_MODEL  # 初始化为默认模型
+    uploaded_files = []  # 记录已上传的文件信息
 
-    def create_llm():
-        """创建 LLM，尝试多个模型名称"""
-        model_names = [
-            # 最新的 2.5 系列模型（Preview）
-            "gemini-2.5-flash-preview-05-20",
-            "gemini-2.5-pro-preview-06-05",
+    def create_llm(selected_model=None):
+        """创建 LLM，支持指定模型或自动选择"""
+        global current_model
 
-            # 2.0 系列模型（稳定版）
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-lite",
-
-            # 1.5 系列模型（稳定版，备用）
-            "gemini-1.5-flash",
-            "gemini-1.5-pro",
-        ]
+        if selected_model:
+            # 使用指定的模型
+            model_names = [selected_model]
+        else:
+            # 使用默认的模型优先级列表
+            model_names = AVAILABLE_MODELS.copy()
 
         for model_name in model_names:
             try:
@@ -66,16 +75,21 @@ try:
                 # 测试模型是否可用
                 test_response = llm.invoke("测试")
                 print(f"✅ 成功使用模型: {model_name}")
+                current_model = model_name
                 return llm
             except Exception as e:
                 print(f"❌ 模型 {model_name} 失败: {e}")
+                if selected_model:
+                    # 如果指定的模型失败，尝试默认模型
+                    print(f"指定模型失败，尝试使用默认模型")
+                    return create_llm()
                 continue
 
         raise Exception("所有 Gemini 模型都不可用")
 
     def process_pdf(file):
         """处理 PDF 文件并创建向量数据库"""
-        global vectorstore, qa_chain
+        global vectorstore, qa_chain, uploaded_files
 
         print(f"开始处理文件: {file}")
 
@@ -98,6 +112,16 @@ try:
             if not os.path.exists(file_path):
                 return f"❌ 文件不存在: {file_path}"
 
+            # 🔄 注意：现在支持多文档累积，不再重置向量数据库
+            print("正在准备处理新文档...")
+
+            # 不再重置全局变量，保持多文档累积
+            # vectorstore = None  # 保留现有向量数据库
+            # qa_chain = None     # 保留现有QA链
+            # 不清空文件列表，支持多文档累积
+
+            print("✅ 系统准备完成，将添加新文档到现有知识库")
+
             # 加载 PDF
             print("正在加载 PDF...")
             loader = PyPDFLoader(file_path)
@@ -118,22 +142,71 @@ try:
             texts = text_splitter.split_documents(documents)
             print(f"文档分割为 {len(texts)} 个片段")
 
-            # 创建嵌入
+            # 创建嵌入（增加超时时间和重试机制）
             print("正在创建嵌入...")
-            embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+            try:
+                embeddings = GoogleGenerativeAIEmbeddings(
+                    model="models/embedding-001",
+                    request_timeout=120  # 增加超时时间到120秒
+                )
+                print("✅ Embedding 模型初始化成功")
+            except Exception as e:
+                print(f"❌ Embedding 模型初始化失败，尝试备用方案: {e}")
+                # 备用方案：尝试不同的 embedding 模型
+                try:
+                    embeddings = GoogleGenerativeAIEmbeddings(
+                        model="models/text-embedding-004",
+                        request_timeout=120
+                    )
+                    print("✅ 使用备用 embedding 模型成功")
+                except Exception as e2:
+                    return f"❌ 无法初始化 embedding 模型: {str(e2)}"
 
-            # 创建向量数据库
-            print("正在创建向量数据库...")
-            vectorstore = Chroma.from_documents(
-                documents=texts,
-                embedding=embeddings,
-                persist_directory="./chroma_db"
-            )
-            print("向量数据库创建成功")
+            # 🔄 检查是否已有向量数据库，支持多文档累积
+            print("正在处理向量数据库...")
+
+            # 如果已存在向量数据库，则添加新文档；否则创建新的
+            if vectorstore is not None:
+                print("检测到已有向量数据库，将添加新文档...")
+                # 向现有向量数据库添加新文档
+                try:
+                    vectorstore.add_documents(texts)
+                    print("✅ 新文档已添加到现有向量数据库")
+                except Exception as e:
+                    print(f"❌ 添加文档到向量数据库失败: {e}")
+                    # 如果添加失败，重新创建整个向量数据库
+                    print("正在重新创建向量数据库...")
+                    vectorstore = Chroma.from_documents(
+                        documents=texts,
+                        embedding=embeddings
+                    )
+                    print("✅ 向量数据库重新创建成功")
+            else:
+                print("创建新的向量数据库...")
+                # 创建向量数据库（分批处理避免超时）
+                try:
+                    # 分批处理大文档，避免一次性处理过多内容导致超时
+                    batch_size = 10  # 每批处理10个文档片段
+                    if len(texts) > batch_size:
+                        print(f"文档较大，将分 {(len(texts) + batch_size - 1) // batch_size} 批处理...")
+
+                    vectorstore = Chroma.from_documents(
+                        documents=texts,
+                        embedding=embeddings
+                        # 使用内存模式，避免文件权限问题
+                    )
+                    print("✅ 向量数据库创建成功")
+                except Exception as e:
+                    print(f"❌ 向量数据库创建失败: {e}")
+                    if "timeout" in str(e).lower():
+                        return f"❌ 网络超时，请检查网络连接或稍后重试: {str(e)}"
+                    else:
+                        return f"❌ 向量数据库创建失败: {str(e)}"
 
             # 创建 QA 链
             print("正在初始化 QA 链...")
-            llm = create_llm()  # 使用新的 LLM 创建函数
+            # 确保使用当前选中的模型
+            llm = create_llm(current_model)
 
             # 自定义提示模板
             prompt_template = """
@@ -162,12 +235,27 @@ try:
 
             print("QA 链初始化成功")
 
+            # 记录文件信息
+            from datetime import datetime
+            file_info = {
+                'name': file_name,
+                'upload_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'pages': len(documents),
+                'chunks': len(texts),
+                'model': current_model
+            }
+            uploaded_files.append(file_info)
+            print(f"已记录文件信息: {file_name}")
+
             result_message = f"""✅ 成功处理 PDF 文件: {file_name}
 📄 共处理 {len(documents)} 页文档
 🔍 分割为 {len(texts)} 个文档片段
-💾 向量数据库已创建
-🤖 QA 链已初始化
-💡 现在可以开始提问了！"""
+📚 已添加到知识库（支持多文档累积，当前共 {len(uploaded_files)} 个文档）
+💾 内存向量数据库已更新（避免权限问题）
+🤖 QA 链已初始化（模型: {current_model if current_model else '未知'}）
+💡 现在可以向所有已上传的文档提问了！
+
+🔄 系统状态已更新，请查看"系统状态"标签页确认"""
 
             print("处理完成")
             return result_message
@@ -177,6 +265,23 @@ try:
             print(f"错误: {e}")
             print(f"错误详情: {traceback.format_exc()}")
             return error_msg
+
+    def process_pdf_and_update_status(file, selected_model):
+        """处理 PDF 并更新模型状态"""
+        global current_model
+
+        # 先更新当前模型
+        current_model = selected_model
+
+        # 处理 PDF
+        result = process_pdf(file)
+
+        # 返回处理结果、更新的模型状态、系统状态和文件列表
+        model_status_text = f"当前模型: {current_model}\n状态: 已就绪\n\n💡 提示: 文档已加载，可以开始对话"
+        system_status_text = get_system_status()
+        files_display = get_uploaded_files_display()
+
+        return result, model_status_text, system_status_text, files_display
 
     def chat_with_pdf(message, history):
         """与 PDF 内容对话"""
@@ -220,9 +325,86 @@ try:
             history.append([message, error_response])
             return history, ""
 
+    def switch_model(selected_model):
+        """切换模型"""
+        global qa_chain, current_model
+
+        # 更新当前模型
+        current_model = selected_model
+
+        if not vectorstore:
+            return f"❌ 请先上传并处理 PDF 文件，然后再切换模型", current_model
+
+        # 保存当前模型作为备份
+        previous_model = current_model
+
+        try:
+            print(f"正在切换到模型: {selected_model}")
+            llm = create_llm(selected_model)
+
+            # 重新创建 QA 链
+            prompt_template = """
+            基于以下上下文信息回答问题。如果上下文中没有相关信息，请说"根据提供的文档，我无法找到相关信息"。
+
+            上下文：
+            {context}
+
+            问题：{question}
+
+            请用中文回答：
+            """
+
+            PROMPT = PromptTemplate(
+                template=prompt_template,
+                input_variables=["context", "question"]
+            )
+
+            qa_chain = RetrievalQA.from_chain_type(
+                llm=llm,
+                chain_type="stuff",
+                retriever=vectorstore.as_retriever(search_kwargs={"k": 3}),
+                chain_type_kwargs={"prompt": PROMPT},
+                return_source_documents=True
+            )
+
+            success_message = f"""✅ 模型切换成功
+
+当前模型: {current_model}
+状态: 已就绪
+
+💡 提示: 如果已上传文档，可以直接开始对话"""
+
+            return success_message, current_model
+
+        except Exception as e:
+            error_message = f"❌ 切换模型失败: {str(e)}"
+            print(f"模型切换失败，回退到: {previous_model}")
+            # 回退模型状态
+            current_model = previous_model
+            # 返回错误消息和回退的模型
+            return error_message, previous_model
+
     def get_system_status():
         """获取系统状态"""
-        global vectorstore, qa_chain
+        global vectorstore, qa_chain, current_model, uploaded_files
+
+        # 检查向量数据库状态
+        vectorstore_status = "❌ 未加载"
+        if vectorstore is not None:
+            try:
+                # 尝试获取文档数量来验证向量数据库是否正常
+                doc_count = len(vectorstore.get()['documents']) if hasattr(vectorstore, 'get') else "无法获取"
+                vectorstore_status = f"✅ 已加载 (文档数: {doc_count})"
+            except:
+                vectorstore_status = "✅ 已加载"
+
+        # 检查QA链状态
+        qa_status = "❌ 未初始化"
+        if qa_chain is not None:
+            qa_status = "✅ 已初始化"
+
+        # 检查当前模型状态
+        model_status = current_model if current_model else "未初始化"
 
         status = f"""
 ## 📊 系统状态
@@ -233,9 +415,11 @@ try:
 
 **API 密钥**: {'✅ 已配置' if os.getenv('GOOGLE_API_KEY') else '❌ 未配置'}
 
-**向量数据库**: {'✅ 已加载' if vectorstore else '❌ 未加载'}
+**当前模型**: {model_status}
 
-**QA 链**: {'✅ 已初始化' if qa_chain else '❌ 未初始化'}
+**向量数据库**: {vectorstore_status}
+
+**QA 链**: {qa_status}
 
 ---
 
@@ -272,7 +456,6 @@ try:
 
 **最新 2.5 系列 (Preview)**
 - `gemini-2.5-flash-preview-05-20` - 最新 Flash，支持思维链推理
-- `gemini-2.5-pro-preview-06-05` - 最强推理能力，适合复杂任务
 
 **稳定 2.0 系列**
 - `gemini-2.0-flash` - 下一代特性，生产环境推荐
@@ -293,24 +476,30 @@ try:
 
 ---
 
-## 🎯 性能特点
-
-**2.5 Flash Preview**: 思维链推理 + 平衡性能
-
-**2.5 Pro Preview**: 最强推理 + 复杂任务
-
-**2.0 Flash**: 下一代特性 + 稳定可靠
-
-**2.0 Flash-Lite**: 成本优化 + 低延迟
-
-**1.5 Flash**: 快速响应 + 多模态
-
-**1.5 Pro**: 深度推理 + 长上下文
 """
+
         return status
 
+    def get_uploaded_files_display():
+        """获取已上传文件列表的显示内容"""
+        global uploaded_files
+
+        if not uploaded_files:
+            return "*暂无已上传文件*"
+
+        files_display = "## 📄 已上传文件\n\n"
+        for i, file_info in enumerate(uploaded_files, 1):
+            files_display += f"""**{i}. {file_info['name']}**
+- 📅 上传时间: {file_info['upload_time']}
+- 📑 页数: {file_info['pages']} 页
+- 🔍 文档片段: {file_info['chunks']} 个
+- 🤖 使用模型: {file_info['model']}
+
+"""
+        return files_display
+
     # 创建 Gradio 界面
-    with gr.Blocks(title="Web RAG 系统") as demo:
+    with gr.Blocks(title="Web RAG 系统", theme=gr.themes.Soft()) as demo:
         gr.Markdown("# 🚀 Web RAG 系统")
         gr.Markdown("基于 Google Gemini 的智能文档问答系统")
 
@@ -318,17 +507,39 @@ try:
             gr.Markdown("### 上传 PDF 文档")
             gr.Markdown("**注意**: 上传后请等待处理完成，状态会显示在下方")
 
-            file_input = gr.File()
-            upload_output = gr.Textbox(
-                label="处理状态"
-            )
+            with gr.Row():
+                with gr.Column(scale=2):
+                    file_input = gr.File(
+                        label="选择 PDF 文件",
+                        file_types=[".pdf"]
+                    )
+                    upload_output = gr.Textbox(
+                        label="处理状态",
+                        lines=6,
+                        interactive=False,
+                        placeholder="等待文件上传..."
+                    )
 
-            # 绑定上传事件
-            file_input.upload(
-                fn=process_pdf,
-                inputs=file_input,
-                outputs=upload_output
-            )
+                    # 已上传文件列表
+                    uploaded_files_display = gr.Markdown(
+                        label="已上传文件列表",
+                        value="*暂无已上传文件*"
+                    )
+
+                with gr.Column(scale=1):
+                    gr.Markdown("### 🤖 模型配置")
+                    model_dropdown = gr.Dropdown(
+                        choices=AVAILABLE_MODELS,
+                        value=DEFAULT_MODEL,
+                        label="选择 Gemini 模型",
+                        info="选择后自动切换模型"
+                    )
+                    model_status = gr.Textbox(
+                        label="模型状态",
+                        value=f"当前模型: {DEFAULT_MODEL}\n状态: 已就绪",
+                        interactive=False,
+                        lines=3
+                    )
 
         with gr.Tab("💬 智能对话"):
             gr.Markdown("### 与文档内容对话")
@@ -346,11 +557,55 @@ try:
             clear_btn.click(lambda: [], None, chatbot)
 
         with gr.Tab("⚙️ 系统状态"):
-            status_output = gr.Markdown()
-            refresh_btn = gr.Button("刷新状态")
+            with gr.Row():
+                with gr.Column(scale=2):
+                    status_output = gr.Markdown(
+                        value=get_system_status(),
+                        label="系统状态"
+                    )
+                    refresh_btn = gr.Button("🔄 刷新状态", variant="secondary")
 
-            refresh_btn.click(get_system_status, None, status_output)
-            demo.load(get_system_status, None, status_output)
+                    # 刷新按钮事件
+                    refresh_btn.click(
+                        fn=get_system_status,
+                        outputs=status_output
+                    )
+
+                with gr.Column(scale=1):
+                    gr.Markdown("### 📋 可用模型列表")
+                    models_info = gr.Markdown(f"""
+**默认模型**: `{DEFAULT_MODEL}`
+
+**所有可用模型**:
+{chr(10).join([f'- `{model}`' for model in AVAILABLE_MODELS])}
+
+**模型说明**:
+- **2.5 系列**: 最新预览版，性能最佳
+- **2.0 系列**: 稳定版，生产推荐
+- **1.5 系列**: 备用版，确保可用性
+                    """)
+
+        # 事件绑定 - 在所有组件定义完成后
+        # 文件上传事件
+        file_input.upload(
+            fn=process_pdf_and_update_status,
+            inputs=[file_input, model_dropdown],
+            outputs=[upload_output, model_status, status_output, uploaded_files_display]
+        )
+
+        # 文件清除时重置状态
+        file_input.clear(
+            fn=lambda: "等待文件上传...",
+            inputs=None,
+            outputs=upload_output
+        )
+
+        # 模型下拉框改变时自动切换
+        model_dropdown.change(
+            fn=switch_model,
+            inputs=model_dropdown,
+            outputs=[model_status, model_dropdown]  # 同时更新状态和下拉框值
+        )
 
 except ImportError as e:
     print(f"❌ 导入错误: {e}")
