@@ -318,14 +318,9 @@ try:
             gr.Markdown("### 上传 PDF 文档")
             gr.Markdown("**注意**: 上传后请等待处理完成，状态会显示在下方")
 
-            file_input = gr.File(
-                label="选择 PDF 文件"
-            )
+            file_input = gr.File()
             upload_output = gr.Textbox(
-                label="处理状态",
-                lines=8,
-                interactive=False,
-                placeholder="等待文件上传..."
+                label="处理状态"
             )
 
             # 绑定上传事件
@@ -339,16 +334,10 @@ try:
             gr.Markdown("### 与文档内容对话")
             gr.Markdown("**提示**: 请先上传并处理 PDF 文件，然后在此提问")
 
-            chatbot = gr.Chatbot(
-                label="对话历史"
-            )
-            msg = gr.Textbox(
-                label="输入您的问题",
-                placeholder="请输入关于文档的问题...",
-                lines=2
-            )
+            chatbot = gr.Chatbot()
+            msg = gr.Textbox()
             with gr.Row():
-                submit_btn = gr.Button("发送", variant="primary")
+                submit_btn = gr.Button("发送")
                 clear_btn = gr.Button("清除对话")
 
             # 绑定对话事件
@@ -381,8 +370,8 @@ if __name__ == "__main__":
         is_spaces = os.getenv("SPACE_ID") is not None
 
         if is_spaces:
-            # Hugging Face Spaces 环境配置 - 使用最简配置
-            demo.launch()
+            # Hugging Face Spaces 环境配置
+            demo.launch(share=True)
         else:
             # 本地开发环境配置
             demo.launch(
