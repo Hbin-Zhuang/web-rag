@@ -383,12 +383,8 @@ if __name__ == "__main__":
         is_spaces = os.getenv("SPACE_ID") is not None
 
         if is_spaces:
-            # Hugging Face Spaces 环境配置
-            demo.launch(
-                share=True,  # HF Spaces 必须设置为 True
-                show_error=True,
-                debug=False  # 生产环境关闭调试
-            )
+            # Hugging Face Spaces 环境配置 - 使用最简配置
+            demo.launch()
         else:
             # 本地开发环境配置
             demo.launch(
