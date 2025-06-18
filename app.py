@@ -379,14 +379,32 @@ if __name__ == "__main__":
         print("🚀 启动 Web RAG 系统...")
         print(f"📋 API 密钥状态: {'✅ 已配置' if os.getenv('GOOGLE_API_KEY') else '❌ 未配置'}")
 
-        demo.launch(
-            server_name="127.0.0.1",
-            server_port=7860,  # 使用标准端口
-            share=False,
-            show_error=True,
-            inbrowser=False,
-            debug=True  # 启用调试模式
-        )
+        # 检测运行环境
+        is_spaces = os.getenv("SPACE_ID") is not None
+
+        if is_spaces:
+            # Hugging Face Spaces 环境配置
+            demo.launch(
+                server_name="0.0.0.0",
+                server_port=7860,
+                share=False,
+                show_error=True,
+                inbrowser=False,
+                debug=False,  # 生产环境关闭调试
+                auth=None,  # HF Spaces 不需要认证
+                favicon_path=None,
+                ssl_verify=False
+            )
+        else:
+            # 本地开发环境配置
+            demo.launch(
+                server_name="127.0.0.1",
+                server_port=7860,
+                share=False,
+                show_error=True,
+                inbrowser=False,
+                debug=True  # 启用调试模式
+            )
     except Exception as e:
         print(f"❌ 启动失败: {e}")
         print(f"错误详情: {traceback.format_exc()}")
