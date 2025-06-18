@@ -310,7 +310,7 @@ try:
         return status
 
     # 创建 Gradio 界面
-    with gr.Blocks(title="Web RAG 系统", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="Web RAG 系统") as demo:
         gr.Markdown("# 🚀 Web RAG 系统")
         gr.Markdown("基于 Google Gemini 的智能文档问答系统")
 
@@ -319,8 +319,7 @@ try:
             gr.Markdown("**注意**: 上传后请等待处理完成，状态会显示在下方")
 
             file_input = gr.File(
-                label="选择 PDF 文件",
-                file_types=[".pdf"]
+                label="选择 PDF 文件"
             )
             upload_output = gr.Textbox(
                 label="处理状态",
@@ -341,7 +340,6 @@ try:
             gr.Markdown("**提示**: 请先上传并处理 PDF 文件，然后在此提问")
 
             chatbot = gr.Chatbot(
-                height=500,
                 label="对话历史"
             )
             msg = gr.Textbox(
