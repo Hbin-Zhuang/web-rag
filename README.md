@@ -1,3 +1,16 @@
+---
+title: Web RAG System
+emoji: 📚
+colorFrom: blue
+colorTo: green
+sdk: gradio
+sdk_version: 4.44.0
+app_file: app.py
+pinned: false
+license: mit
+short_description: 基于 LangChain 和 Gemini 的轻量级 RAG 系统
+---
+
 # 📚 Web RAG System
 
 基于 LangChain 和 Gemini 的轻量级 RAG 系统，支持本地 PDF 文档读取、Web UI 展示，并可部署到 Hugging Face Spaces。
@@ -86,7 +99,7 @@ pip install -r requirements.txt
 4. **配置API密钥**
 ```bash
 # 复制环境变量示例文件
-cp .env.example .env
+cp env.example .env
 
 # 编辑 .env 文件，填入您的 Google API Key
 # GOOGLE_API_KEY=your_google_api_key_here
@@ -133,24 +146,72 @@ python app.py
 
 ## 🌐 部署到 Hugging Face Spaces
 
-### 自动部署（推荐）
+本项目已完全适配 Hugging Face Spaces 部署环境，支持一键部署和自动构建。
 
-1. Fork 本项目到您的 GitHub 账户
-2. 在 [Hugging Face Spaces](https://huggingface.co/new-space) 创建新的 Space
-3. 选择 "Gradio" SDK
-4. 连接您的 GitHub 仓库
-5. 在 Space 的 Settings 中添加 Secret：
-   - Name: `GOOGLE_API_KEY`
-   - Value: 您的 Google API Key
-6. Space 会自动构建和部署
+### 🚀 快速部署（推荐）
 
-### 手动部署
+#### 方法 1: GitHub 集成部署
 
-1. 创建新的 Hugging Face Space
-2. 上传所有项目文件
-3. 确保 `README.md` 包含正确的 YAML 配置头
-4. 添加 API Key 到 Secrets
-5. 等待部署完成
+1. **准备 GitHub 仓库**
+   ```bash
+   git clone https://github.com/your-username/web-rag.git
+   cd web-rag
+   ```
+
+2. **创建 Hugging Face Space**
+   - 访问 [Hugging Face Spaces](https://huggingface.co/new-space)
+   - Space name: `web-rag-system` (或您喜欢的名称)
+   - License: `MIT`
+   - SDK: `Gradio`
+   - 选择 **"Connect to GitHub repository"**
+   - 选择您的 `web-rag` 仓库
+
+3. **配置 API 密钥**
+   - 进入 Space 的 **"Settings"** 标签
+   - 在 **"Repository secrets"** 部分添加：
+     - Name: `GOOGLE_API_KEY`
+     - Value: 您的 Google Gemini API Key
+
+4. **等待自动部署**
+   - HF Spaces 会自动检测配置并开始构建
+   - 构建完成后即可访问您的应用
+
+#### 方法 2: 直接上传部署
+
+1. **创建新 Space**
+   - 访问 [Hugging Face Spaces](https://huggingface.co/new-space)
+   - 填写基本信息，选择 Gradio SDK
+
+2. **上传核心文件**
+   ```
+   app.py              # 主应用文件
+   requirements.txt    # 依赖清单
+   runtime.txt         # Python 版本
+   config.py          # 配置模块
+   memory.py          # 记忆管理
+   utils.py           # 工具函数
+   indexer.py         # 索引器
+   pdf_loader.py      # PDF 加载器
+   retriever.py       # 检索器
+   ```
+
+3. **配置环境变量**
+   - 在 Settings 中添加 `GOOGLE_API_KEY`
+
+### 📍 获取访问地址
+
+部署成功后，您的应用地址为：
+```
+https://huggingface.co/spaces/[您的用户名]/[Space名称]
+```
+
+### 🔧 部署后优化
+
+- **性能调优**: 根据使用量选择合适的硬件配置
+- **访问控制**: 设置 Public/Private 可见性
+- **监控分析**: 查看使用统计和性能指标
+
+📖 **详细部署指南**: 查看 [HF_SPACES_DEPLOYMENT.md](HF_SPACES_DEPLOYMENT.md) 获取完整的部署文档和故障排除指南。
 
 ## 📖 技术栈
 
