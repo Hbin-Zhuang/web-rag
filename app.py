@@ -385,15 +385,9 @@ if __name__ == "__main__":
         if is_spaces:
             # Hugging Face Spaces 环境配置
             demo.launch(
-                server_name="0.0.0.0",
-                server_port=7860,
-                share=False,
+                share=True,  # HF Spaces 必须设置为 True
                 show_error=True,
-                inbrowser=False,
-                debug=False,  # 生产环境关闭调试
-                auth=None,  # HF Spaces 不需要认证
-                favicon_path=None,
-                ssl_verify=False
+                debug=False  # 生产环境关闭调试
             )
         else:
             # 本地开发环境配置
