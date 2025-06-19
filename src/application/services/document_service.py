@@ -22,7 +22,13 @@ from src.shared.state.application_state import app_state, FileInfo
 class DocumentService:
     """文档处理服务"""
 
-    def __init__(self):
+    def __init__(self, model_service=None):
+        """初始化文档服务
+
+        Args:
+            model_service: 模型管理服务实例，用于依赖注入
+        """
+        self.model_service = model_service
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200,

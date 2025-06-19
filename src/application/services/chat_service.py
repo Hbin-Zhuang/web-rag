@@ -15,7 +15,13 @@ from src.shared.state.application_state import app_state
 class ChatService:
     """聊天服务"""
 
-    def __init__(self):
+    def __init__(self, model_service=None):
+        """初始化聊天服务
+
+        Args:
+            model_service: 模型管理服务实例，用于依赖注入
+        """
+        self.model_service = model_service
         self.conversation_manager = ConversationManager()
 
     def chat_with_pdf(self, message: str, history: List[List[str]]) -> Tuple[str, List[List[str]]]:
