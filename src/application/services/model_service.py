@@ -1,19 +1,32 @@
 """
 模型服务
 封装AI模型的选择、切换、状态管理等逻辑
+集成基础设施层的配置和日志服务
 """
 
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 
 from src.shared.state.application_state import app_state
+from src.infrastructure import (
+    IConfigurationService,
+    ILoggingService,
+    get_config,
+    get_logger,
+    performance_monitor
+)
 
 
 class ModelService:
     """模型管理服务"""
 
-    def __init__(self):
-        self._model_metadata = {
+    def __init__(self, config_service: IConfigurationService = None, logging_service: ILoggingService = None):
+        # 基础设施服务
+        self._config_service = config_service or get_config()
+        self._logger = logging_service or get_logger()
+
+        # 从配置获取模型元数据
+        self._model_metadata = self._config_service.get_value("model_metadata", {
             "gemini-2.5-flash-preview-05-20": {
                 "display_name": "Gemini 2.5 Flash Preview",
                 "description": "最新预览版本，速度快，适合日常问答",
@@ -44,7 +57,11 @@ class ModelService:
                 "max_tokens": 32768,
                 "recommended": True
             }
-        }
+        })
+
+        self._logger.info("ModelService 初始化完成", extra={
+            "available_models_count": len(self._model_metadata)
+        })
 
     def get_available_models(self) -> List[str]:
         """获取可用模型列表"""
@@ -54,6 +71,7 @@ class ModelService:
         """获取当前模型"""
         return app_state.current_model
 
+    @performance_monitor(get_logger())
     def switch_model(self, model_name: str) -> Tuple[bool, str]:
         """
         切换模型
@@ -66,6 +84,10 @@ class ModelService:
         """
         try:
             if model_name not in self.get_available_models():
+                self._logger.warning("尝试切换到不支持的模型", extra={
+                    "requested_model": model_name,
+                    "available_models": self.get_available_models()
+                })
                 return False, f"❌ 不支持的模型: {model_name}"
 
             old_model = app_state.current_model
@@ -75,13 +97,18 @@ class ModelService:
             app_state.qa_chain = None
 
             success_msg = f"✅ 模型已切换: {old_model} → {model_name}"
-            print(success_msg)
+            self._logger.info("模型切换成功", extra={
+                "old_model": old_model,
+                "new_model": model_name
+            })
 
             return True, success_msg
 
         except Exception as e:
             error_msg = f"❌ 模型切换失败: {str(e)}"
-            print(error_msg)
+            self._logger.error("模型切换失败", exception=e, extra={
+                "requested_model": model_name
+            })
             return False, error_msg
 
     def get_model_status(self) -> str:

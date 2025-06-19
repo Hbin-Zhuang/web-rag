@@ -1,12 +1,20 @@
 """
 应用状态管理单例类
 替代 app.py 中的全局变量，提供线程安全的状态管理
+集成基础设施层的配置和日志服务
 """
 
 import threading
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from datetime import datetime
+
+from ...infrastructure import (
+    IConfigurationService,
+    ILoggingService,
+    get_config,
+    get_logger
+)
 
 
 @dataclass
@@ -40,19 +48,17 @@ class ApplicationState:
 
         self._state_lock = threading.RLock()
 
+        # 基础设施服务
+        self._config_service: IConfigurationService = get_config()
+        self._logger: ILoggingService = get_logger()
+
         # 向量存储相关
         self._vectorstore = None
         self._qa_chain = None
 
-        # 模型管理
-        self._current_model = "gemini-2.5-flash-preview-05-20"  # 默认模型
-        self._available_models = [
-            "gemini-2.5-flash-preview-05-20",
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-lite",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro",
-        ]
+        # 模型管理（从配置获取）
+        self._current_model = self._config_service.get_value("chat_model")
+        self._available_models = self._config_service.get_value("fallback_models")
 
         # 文件管理
         self._uploaded_files: List[FileInfo] = []
@@ -62,6 +68,10 @@ class ApplicationState:
         self._last_update = datetime.now()
 
         self._initialized = True
+        self._logger.info("ApplicationState 初始化完成", extra={
+            "current_model": self._current_model,
+            "available_models_count": len(self._available_models)
+        })
 
     @property
     def vectorstore(self):
@@ -75,6 +85,9 @@ class ApplicationState:
         with self._state_lock:
             self._vectorstore = value
             self._last_update = datetime.now()
+            self._logger.info("向量存储已更新", extra={
+                "vectorstore_type": type(value).__name__ if value else None
+            })
 
     @property
     def qa_chain(self):
@@ -100,9 +113,18 @@ class ApplicationState:
         """设置当前模型"""
         with self._state_lock:
             if value in self._available_models:
+                old_model = self._current_model
                 self._current_model = value
                 self._last_update = datetime.now()
+                self._logger.info("模型已切换", extra={
+                    "old_model": old_model,
+                    "new_model": value
+                })
             else:
+                self._logger.error("尝试设置不支持的模型", extra={
+                    "requested_model": value,
+                    "available_models": self._available_models
+                })
                 raise ValueError(f"不支持的模型: {value}")
 
     @property

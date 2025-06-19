@@ -8,7 +8,7 @@
 包含系统架构设计、技术规范、配置指南等核心技术文档。
 
 - **[ARCHITECTURE.md](architecture/ARCHITECTURE.md)** - 系统架构设计文档
-  - 分层架构设计 (v2.0 重构版)
+  - 分层架构设计 (v3.0 重构版)
   - 模块接口规范
   - 技术栈说明
   - 扩展点设计
@@ -34,6 +34,18 @@
   - 代码质量改进
   - 验证结果和性能指标
 
+- **[STAGE2_COMPLETION_REPORT.md](refactor/STAGE2_COMPLETION_REPORT.md)** - 阶段2重构报告
+  - UI控制器分离与表示层重构
+  - 组件化UI架构
+  - 事件管理系统
+  - MVC模式实现
+
+- **[STAGE3_COMPLETION_REPORT.md](refactor/STAGE3_COMPLETION_REPORT.md)** - 阶段3重构报告
+  - 基础设施层抽象与依赖注入实现
+  - 配置和日志服务
+  - 依赖注入容器
+  - 外部服务接口抽象
+
 ## 📖 文档导航
 
 ### 🚀 快速开始
@@ -51,7 +63,9 @@
 ### 📊 重构历程
 如果你想了解重构过程：
 1. 🔄 [STAGE1_COMPLETION_REPORT.md](refactor/STAGE1_COMPLETION_REPORT.md) - 阶段1重构详情
-2. 📋 [DEVELOPMENT_LOG.md](architecture/DEVELOPMENT_LOG.md) - 完整开发日志
+2. 🔄 [STAGE2_COMPLETION_REPORT.md](refactor/STAGE2_COMPLETION_REPORT.md) - 阶段2重构详情
+3. 🔄 [STAGE3_COMPLETION_REPORT.md](refactor/STAGE3_COMPLETION_REPORT.md) - 阶段3重构详情
+4. 📋 [DEVELOPMENT_LOG.md](architecture/DEVELOPMENT_LOG.md) - 完整开发日志
 
 ## 🔄 重构阶段概览
 
@@ -60,18 +74,23 @@
 | 阶段 | 状态 | 重构内容 | 文档 |
 |------|------|----------|------|
 | 阶段1 | ✅ 已完成 | 核心服务抽取与状态管理重构 | [报告](refactor/STAGE1_COMPLETION_REPORT.md) |
-| 阶段2 | 🔄 规划中 | UI控制器分离与表示层重构 | - |
-| 阶段3 | 📋 待开始 | 基础设施层抽象与依赖注入实现 | - |
-| 阶段4 | 📋 待开始 | 配置和工具模块重组优化 | - |
+| 阶段2 | ✅ 已完成 | UI控制器分离与表示层重构 | [报告](refactor/STAGE2_COMPLETION_REPORT.md) |
+| 阶段3 | ✅ 已完成 | 基础设施层抽象与依赖注入实现 | [报告](refactor/STAGE3_COMPLETION_REPORT.md) |
+| 阶段4 | 🔄 进行中 | 配置和工具模块重组优化 | - |
 | 阶段5 | 📋 待开始 | 内存管理服务集成优化 | - |
 | 阶段6 | 📋 待开始 | 目录结构最终整理与文档完善 | - |
 | 阶段7 | 📋 待开始 | 性能优化与扩展性增强 | - |
+
+**当前版本**: v3.0 (基础设施层重构完成)
+
+**当前进度**: 3/7 阶段已完成 (43%)
 
 ## 📝 文档维护
 
 - **更新频率**: 每完成一个重构阶段更新一次
 - **维护原则**: 保持文档与代码同步，记录重要技术决策
 - **版本控制**: 重要变更通过git commit记录
+- **最后更新**: 2025-06-19 (阶段3完成后)
 
 ---
 

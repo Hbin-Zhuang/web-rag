@@ -1,21 +1,44 @@
 #!/usr/bin/env python3
 """
-Web RAG 系统 (重构版 v2.0)
+Web RAG 系统 (重构版 v3.0)
 基于 Google Gemini 的智能文档问答系统
 
 架构特性:
-- 分层架构设计 (应用层 + 服务层 + 状态管理)
+- 分层架构设计 (应用层 + 服务层 + 状态管理 + 基础设施层)
 - 组件化UI架构 (Tab控制器 + 事件管理)
 - 线程安全状态管理
-- 服务依赖注入
+- 依赖注入容器
+- 配置抽象管理
+- 结构化日志系统
 """
 
 import os
 import sys
 import traceback
 
-# 导入服务层
+# 导入基础设施层
 try:
+    from src.infrastructure import (
+        initialize_infrastructure,
+        get_config,
+        get_logger,
+        get_service,
+        Environment
+    )
+
+    # 初始化基础设施
+    initialize_infrastructure()
+
+    # 获取基础设施服务
+    config_service = get_config()
+    logger = get_logger()
+
+    logger.info("Web RAG 系统启动", extra={
+        "environment": config_service.get_environment().value,
+        "version": "v3.0"
+    })
+
+    # 导入服务层
     from src.application.services.document_service import DocumentService
     from src.application.services.chat_service import ChatService
     from src.application.services.model_service import ModelService
@@ -27,8 +50,8 @@ try:
     # 初始化应用状态和服务
     application_state = ApplicationState()
 
-    # 创建服务实例
-    model_service = ModelService()
+    # 创建服务实例 (使用依赖注入)
+    model_service = ModelService(config_service, logger)
     document_service = DocumentService(model_service)
     chat_service = ChatService(model_service)
 
@@ -45,8 +68,14 @@ try:
     # 打印架构信息
     main_ui.print_architecture_info()
 
+    logger.info("Web RAG 系统初始化完成", extra={
+        "services_initialized": ["model_service", "document_service", "chat_service"],
+        "ui_components": ["upload_tab", "chat_tab", "status_tab"]
+    })
+
 except ImportError as e:
-    print(f"❌ 导入错误: {e}")
+    error_msg = f"导入错误: {e}"
+    print(f"❌ {error_msg}")
     print("📋 这可能是因为缺少必要的依赖包")
     print("💡 解决方案: 请运行以下命令安装依赖:")
     print("   pip3 install langchain langchain-google-genai langchain-community chromadb gradio")
@@ -70,8 +99,20 @@ pip3 install langchain langchain-google-genai langchain-community chromadb gradi
 """)
 
 except Exception as e:
-    print(f"❌ 系统初始化失败: {e}")
-    print(f"错误详情: {traceback.format_exc()}")
+    error_msg = f"系统初始化失败: {e}"
+    error_details = traceback.format_exc()
+
+    print(f"❌ {error_msg}")
+    print(f"错误详情: {error_details}")
+
+    # 如果logger已初始化，使用它记录错误
+    try:
+        logger.critical("系统初始化失败", exception=e, extra={
+            "error_type": type(e).__name__,
+            "traceback": error_details
+        })
+    except:
+        pass  # logger可能未初始化
 
     # 创建通用错误界面
     import gradio as gr
@@ -89,6 +130,10 @@ if __name__ == "__main__":
     try:
         # 启动界面
         main_ui.launch()
+
+        logger.info("Web RAG 系统启动成功", extra={
+            "launch_config": config_service.get_gradio_configs()
+        })
 
     except NameError:
         # main_ui 未定义，使用 demo 启动
@@ -113,5 +158,17 @@ if __name__ == "__main__":
             )
 
     except Exception as e:
-        print(f"❌ 启动失败: {e}")
-        print(f"错误详情: {traceback.format_exc()}")
+        error_msg = f"启动失败: {e}"
+        error_details = traceback.format_exc()
+
+        print(f"❌ {error_msg}")
+        print(f"错误详情: {error_details}")
+
+        # 尝试记录错误日志
+        try:
+            logger.critical("系统启动失败", exception=e, extra={
+                "error_type": type(e).__name__,
+                "traceback": error_details
+            })
+        except:
+            pass
