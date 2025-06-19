@@ -99,15 +99,7 @@ from .factories.infrastructure_factory import (
     get_container as get_di_container
 )
 
-# 便捷函数
-def get_legacy_config_instance():
-    """获取兼容性配置实例"""
-    return get_legacy_config()
-
-def get_utility():
-    """获取工具服务实例"""
-    return get_utility_service()
-
+# 预定义__all__
 __all__ = [
     # 配置服务
     'IConfigurationService',
@@ -187,5 +179,66 @@ __all__ = [
     'get_service',
     'get_config',
     'get_logger',
-    'get_di_container'
+    'get_di_container',
+
+    # 快速访问函数
+    'get_memory_service',
+    'get_conversation_manager'
 ]
+
+# 应用服务层导出
+_services_imported = False
+MemoryService = None
+ConversationManager = None
+ChatService = None
+DocumentService = None
+
+try:
+    from ..application.services.memory_service import MemoryService
+    from ..application.services.legacy_memory_adapter import ConversationManager
+    from ..application.services.chat_service import ChatService
+    from ..application.services.document_service import DocumentService
+
+    # 添加到__all__
+    __all__.extend([
+        'MemoryService',
+        'ConversationManager',
+        'ChatService',
+        'DocumentService'
+    ])
+
+    _services_imported = True
+
+except ImportError as e:
+    # 延迟获取logger，避免循环导入
+    try:
+        logger = get_logger()
+        logger.warning("部分应用服务导入失败", extra={"error": str(e)})
+    except:
+        print(f"部分应用服务导入失败: {e}")
+
+    _services_imported = False
+
+# 便捷函数
+def get_legacy_config_instance():
+    """获取兼容性配置实例"""
+    return get_legacy_config()
+
+def get_utility():
+    """获取工具服务实例"""
+    return get_utility_service()
+
+# 快速访问函数
+def get_memory_service(**kwargs):
+    """获取内存服务实例"""
+    if _services_imported and MemoryService:
+        return MemoryService(**kwargs)
+    else:
+        raise ImportError("MemoryService not available")
+
+def get_conversation_manager(**kwargs):
+    """获取对话管理器实例（兼容旧接口）"""
+    if _services_imported and ConversationManager:
+        return ConversationManager(**kwargs)
+    else:
+        raise ImportError("ConversationManager not available")

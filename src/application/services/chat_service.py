@@ -8,21 +8,38 @@ from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from memory import ConversationManager
+from src.application.services.memory_service import MemoryService
 from src.shared.state.application_state import app_state
+from src.infrastructure import get_logger, get_config
+from src.infrastructure.utilities import get_utility_service
 
 
 class ChatService:
     """聊天服务"""
 
-    def __init__(self, model_service=None):
+    def __init__(self, model_service=None, memory_service=None, config_service=None, logger_service=None):
         """初始化聊天服务
 
         Args:
             model_service: 模型管理服务实例，用于依赖注入
+            memory_service: 内存管理服务实例
+            config_service: 配置服务实例
+            logger_service: 日志服务实例
         """
         self.model_service = model_service
-        self.conversation_manager = ConversationManager()
+        self.config = config_service or get_config()
+        self.logger = logger_service or get_logger()
+        self.utility = get_utility_service()
+
+        # 内存管理服务
+        self.memory_service = memory_service or MemoryService(
+            config_service=config_service,
+            logger_service=logger_service
+        )
+
+        self.logger.info("ChatService 初始化完成", extra={
+            "memory_service_type": type(self.memory_service).__name__
+        })
 
     def chat_with_pdf(self, message: str, history: List[List[str]]) -> Tuple[str, List[List[str]]]:
         """
@@ -37,34 +54,87 @@ class ChatService:
         """
         try:
             if not message.strip():
+                self.logger.warning("用户输入为空")
                 return "请输入有效的问题。", history
 
             # 检查是否有可用的问答链
             qa_chain = self._get_or_create_qa_chain()
             if not qa_chain:
-                return "❌ 系统尚未就绪，请先上传PDF文档。", history
+                error_msg = "❌ 系统尚未就绪，请先上传PDF文档。"
+                self.logger.warning("QA链未就绪")
+                return error_msg, history
 
-            print(f"用户问题: {message}")
+            self.logger.info("开始处理用户问题", extra={
+                "question_preview": self.utility.truncate_text(message, 100)
+            })
+
+            # 添加用户消息到内存
+            self.memory_service.add_message_to_current_session("user", message)
+
+            # 获取对话上下文以增强RAG查询
+            conversation_context = self.memory_service.get_current_session_context(include_messages=3)
+
+            # 构建增强的查询（包含上下文）
+            enhanced_query = self._build_enhanced_query(message, conversation_context)
 
             # 执行问答
             try:
-                result = qa_chain({"query": message})
+                result = qa_chain({"query": enhanced_query})
                 answer = result["result"]
-                print(f"AI回答: {answer}")
+
+                # 添加AI回复到内存
+                self.memory_service.add_message_to_current_session("assistant", answer)
+
+                self.logger.info("问答处理成功", extra={
+                    "answer_preview": self.utility.truncate_text(answer, 100),
+                    "session_id": self.memory_service.current_session_id
+                })
+
             except Exception as e:
-                print(f"问答执行失败: {e}")
+                self.logger.error("问答执行失败", exception=e)
                 answer = f"❌ 处理问题时发生错误: {str(e)}"
+
+                # 记录错误到内存
+                self.memory_service.add_message_to_current_session("assistant", answer, {
+                    "error": True,
+                    "error_type": type(e).__name__
+                })
 
             # 更新对话历史
             history.append([message, answer])
+
+            # 定期保存会话
+            if len(history) % 5 == 0:  # 每5轮对话保存一次
+                self.memory_service.save_current_session()
 
             return answer, history
 
         except Exception as e:
             error_msg = f"❌ 聊天服务异常: {str(e)}"
-            print(error_msg)
+            self.logger.error("聊天服务异常", exception=e)
             history.append([message, error_msg])
             return error_msg, history
+
+    def _build_enhanced_query(self, message: str, context: str) -> str:
+        """构建增强的查询，包含对话上下文"""
+        if not context.strip():
+            return message
+
+        # 如果上下文过长，截取最相关的部分
+        if len(context) > 500:
+            context = self.utility.truncate_text(context, 500)
+
+        enhanced_query = f"""
+基于以下对话上下文回答问题：
+
+对话上下文：
+{context}
+
+当前问题：{message}
+
+请考虑对话上下文来提供更准确和相关的回答。
+"""
+        return enhanced_query
 
     def _get_or_create_qa_chain(self):
         """获取或创建问答链"""
@@ -74,7 +144,7 @@ class ChatService:
 
         # 检查是否有向量存储
         if app_state.vectorstore is None:
-            print("向量存储未初始化")
+            self.logger.warning("向量存储未初始化")
             return None
 
         try:
@@ -82,6 +152,9 @@ class ChatService:
             llm = self._create_llm()
             if not llm:
                 return None
+
+            # 获取内存变量以集成到问答链中
+            memory_variables = self.memory_service.get_memory_variables()
 
             # 创建问答链
             app_state.qa_chain = RetrievalQA.from_chain_type(
@@ -94,18 +167,18 @@ class ChatService:
                 return_source_documents=True
             )
 
-            print("✅ 问答链创建成功")
+            self.logger.info("问答链创建成功")
             return app_state.qa_chain
 
         except Exception as e:
-            print(f"❌ 问答链创建失败: {e}")
+            self.logger.error("问答链创建失败", exception=e)
             return None
 
     def _create_llm(self):
         """创建语言模型"""
         try:
             current_model = app_state.current_model
-            print(f"创建LLM，使用模型: {current_model}")
+            self.logger.info("创建LLM", extra={"model": current_model})
 
             llm = ChatGoogleGenerativeAI(
                 model=current_model,
@@ -115,11 +188,11 @@ class ChatService:
 
             # 测试模型是否可用
             test_response = llm.invoke("测试")
-            print(f"✅ LLM创建成功: {current_model}")
+            self.logger.info("LLM创建成功", extra={"model": current_model})
             return llm
 
         except Exception as e:
-            print(f"❌ LLM创建失败: {e}")
+            self.logger.error("LLM创建失败", exception=e)
             return None
 
     def _create_prompt_template(self) -> PromptTemplate:
@@ -132,6 +205,7 @@ class ChatService:
 3. 回答要准确、简洁且有帮助
 4. 如果可能，请引用具体的文档内容
 5. 使用中文回答
+6. 考虑对话的连续性，如果问题涉及之前的讨论内容，请适当关联
 
 上下文文档：
 {context}
@@ -149,9 +223,9 @@ class ChatService:
         """重置问答链"""
         try:
             app_state.qa_chain = None
-            print("✅ 问答链已重置")
+            self.logger.info("问答链已重置")
         except Exception as e:
-            print(f"❌ 重置问答链失败: {e}")
+            self.logger.error("重置问答链失败", exception=e)
 
     def is_ready(self) -> bool:
         """检查聊天服务是否就绪"""
@@ -160,8 +234,92 @@ class ChatService:
 
     def get_conversation_history(self) -> List[dict]:
         """获取对话历史"""
-        return self.conversation_manager.get_history()
+        try:
+            chat_messages = self.memory_service.get_current_session_history()
+            # 转换为兼容格式
+            history = []
+            for msg in chat_messages:
+                role = "human" if msg.role == "user" else "ai"
+                history.append({
+                    "role": role,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp,
+                    "metadata": msg.metadata
+                })
+            return history
+        except Exception as e:
+            self.logger.error("获取对话历史失败", exception=e)
+            return []
 
     def clear_conversation_history(self):
         """清空对话历史"""
-        self.conversation_manager.clear_history()
+        try:
+            self.memory_service.clear_current_session()
+            self.logger.info("对话历史已清空")
+        except Exception as e:
+            self.logger.error("清空对话历史失败", exception=e)
+
+    def reset_conversation_session(self) -> str:
+        """重置对话会话"""
+        try:
+            new_session_id = self.memory_service.reset_current_session()
+            self.logger.info("对话会话已重置", extra={"new_session_id": new_session_id})
+            return new_session_id
+        except Exception as e:
+            self.logger.error("重置对话会话失败", exception=e)
+            return ""
+
+    def save_current_conversation(self) -> bool:
+        """保存当前对话"""
+        try:
+            return self.memory_service.save_current_session()
+        except Exception as e:
+            self.logger.error("保存当前对话失败", exception=e)
+            return False
+
+    def get_conversation_summary(self) -> str:
+        """获取对话摘要"""
+        try:
+            session_info = self.memory_service.get_current_session_info()
+            message_count = session_info.get("message_count", 0)
+
+            if message_count == 0:
+                return "暂无对话内容"
+
+            user_messages = 0
+            assistant_messages = 0
+
+            history = self.get_conversation_history()
+            for msg in history:
+                if msg["role"] == "human":
+                    user_messages += 1
+                else:
+                    assistant_messages += 1
+
+            return f"本次对话包含 {message_count} 条消息（用户 {user_messages} 条，助手 {assistant_messages} 条）"
+
+        except Exception as e:
+            self.logger.error("获取对话摘要失败", exception=e)
+            return "获取对话摘要失败"
+
+    def get_service_status(self) -> dict:
+        """获取聊天服务状态"""
+        try:
+            memory_status = self.memory_service.get_service_status()
+
+            return {
+                "service_name": "ChatService",
+                "status": "active" if self.is_ready() else "not_ready",
+                "qa_chain_ready": app_state.qa_chain is not None,
+                "vectorstore_ready": app_state.vectorstore is not None,
+                "current_model": app_state.current_model,
+                "memory_service": memory_status
+            }
+
+        except Exception as e:
+            self.logger.error("获取服务状态失败", exception=e)
+            return {
+                "service_name": "ChatService",
+                "status": "error",
+                "error": str(e)
+            }

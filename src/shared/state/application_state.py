@@ -67,6 +67,11 @@ class ApplicationState:
         self._system_ready = False
         self._last_update = datetime.now()
 
+        # 应用服务引用（延迟初始化）
+        self._memory_service = None
+        self._chat_service = None
+        self._document_service = None
+
         self._initialized = True
         self._logger.info("ApplicationState 初始化完成", extra={
             "current_model": self._current_model,
@@ -163,9 +168,114 @@ class ApplicationState:
             self._system_ready = value
             self._last_update = datetime.now()
 
+    # 应用服务管理
+
+    @property
+    def memory_service(self):
+        """获取内存服务"""
+        with self._state_lock:
+            if self._memory_service is None:
+                try:
+                    from ...application.services.memory_service import MemoryService
+                    self._memory_service = MemoryService(
+                        config_service=self._config_service,
+                        logger_service=self._logger
+                    )
+                    self._logger.info("内存服务已延迟初始化")
+                except ImportError as e:
+                    self._logger.error("内存服务初始化失败", exception=e)
+                    return None
+            return self._memory_service
+
+    @memory_service.setter
+    def memory_service(self, value):
+        """设置内存服务"""
+        with self._state_lock:
+            self._memory_service = value
+            self._last_update = datetime.now()
+            self._logger.info("内存服务已更新", extra={
+                "service_type": type(value).__name__ if value else None
+            })
+
+    @property
+    def chat_service(self):
+        """获取聊天服务"""
+        with self._state_lock:
+            if self._chat_service is None:
+                try:
+                    from ...application.services.chat_service import ChatService
+                    self._chat_service = ChatService(
+                        memory_service=self.memory_service,
+                        config_service=self._config_service,
+                        logger_service=self._logger
+                    )
+                    self._logger.info("聊天服务已延迟初始化")
+                except ImportError as e:
+                    self._logger.error("聊天服务初始化失败", exception=e)
+                    return None
+            return self._chat_service
+
+    @chat_service.setter
+    def chat_service(self, value):
+        """设置聊天服务"""
+        with self._state_lock:
+            self._chat_service = value
+            self._last_update = datetime.now()
+            self._logger.info("聊天服务已更新", extra={
+                "service_type": type(value).__name__ if value else None
+            })
+
+    @property
+    def document_service(self):
+        """获取文档服务"""
+        with self._state_lock:
+            if self._document_service is None:
+                try:
+                    from ...application.services.document_service import DocumentService
+                    self._document_service = DocumentService(
+                        config_service=self._config_service,
+                        logger_service=self._logger
+                    )
+                    self._logger.info("文档服务已延迟初始化")
+                except ImportError as e:
+                    self._logger.error("文档服务初始化失败", exception=e)
+                    return None
+            return self._document_service
+
+    @document_service.setter
+    def document_service(self, value):
+        """设置文档服务"""
+        with self._state_lock:
+            self._document_service = value
+            self._last_update = datetime.now()
+            self._logger.info("文档服务已更新", extra={
+                "service_type": type(value).__name__ if value else None
+            })
+
     def get_state_info(self) -> Dict[str, Any]:
         """获取状态信息"""
         with self._state_lock:
+            # 获取服务状态
+            services_status = {}
+
+            if self._memory_service:
+                try:
+                    services_status["memory_service"] = self._memory_service.get_service_status()
+                except Exception as e:
+                    services_status["memory_service"] = {"error": str(e)}
+
+            if self._chat_service:
+                try:
+                    services_status["chat_service"] = self._chat_service.get_service_status()
+                except Exception as e:
+                    services_status["chat_service"] = {"error": str(e)}
+
+            if self._document_service:
+                try:
+                    services_status["document_service"] = self._document_service.get_service_status()
+                except Exception as e:
+                    services_status["document_service"] = {"error": str(e)}
+
             return {
                 "current_model": self._current_model,
                 "available_models": self._available_models.copy(),
@@ -173,17 +283,56 @@ class ApplicationState:
                 "vectorstore_initialized": self._vectorstore is not None,
                 "qa_chain_initialized": self._qa_chain is not None,
                 "system_ready": self._system_ready,
-                "last_update": self._last_update.isoformat()
+                "last_update": self._last_update.isoformat(),
+                "services": services_status
             }
 
     def reset_state(self):
-        """重置状态（保留配置）"""
+        """重置状态（保留配置和服务实例）"""
         with self._state_lock:
             self._vectorstore = None
             self._qa_chain = None
             self._uploaded_files.clear()
             self._system_ready = False
             self._last_update = datetime.now()
+
+            # 重置内存服务的当前会话
+            if self._memory_service:
+                try:
+                    self._memory_service.reset_current_session()
+                    self._logger.info("内存服务会话已重置")
+                except Exception as e:
+                    self._logger.error("重置内存服务会话失败", exception=e)
+
+    def cleanup_resources(self):
+        """清理资源（在应用关闭时调用）"""
+        with self._state_lock:
+            # 保存当前会话
+            if self._memory_service:
+                try:
+                    self._memory_service.save_current_session()
+                    self._logger.info("当前会话已保存")
+                except Exception as e:
+                    self._logger.error("保存当前会话失败", exception=e)
+
+            # 清理旧会话
+            if self._memory_service:
+                try:
+                    cleaned_count = self._memory_service.cleanup_old_conversations(days=30)
+                    self._logger.info("旧会话清理完成", extra={"cleaned_count": cleaned_count})
+                except Exception as e:
+                    self._logger.error("清理旧会话失败", exception=e)
+
+    def get_service_registry(self) -> Dict[str, Any]:
+        """获取服务注册表"""
+        with self._state_lock:
+            return {
+                "memory_service": self._memory_service,
+                "chat_service": self._chat_service,
+                "document_service": self._document_service,
+                "config_service": self._config_service,
+                "logger_service": self._logger
+            }
 
 
 # 全局状态实例

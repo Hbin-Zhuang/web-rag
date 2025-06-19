@@ -1,0 +1,20 @@
+{
+  "conversation_id": "session_20250619_221757",
+  "created_time": "2025-06-19 22:17:57",
+  "updated_time": "2025-06-19 22:17:57",
+  "message_count": 2,
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，这是一个测试消息",
+      "timestamp": "2025-06-19 22:17:57",
+      "metadata": {}
+    },
+    {
+      "role": "assistant",
+      "content": "您好！我是AI助手，很高兴为您服务。",
+      "timestamp": "2025-06-19 22:17:57",
+      "metadata": {}
+    }
+  ]
+}
