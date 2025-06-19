@@ -62,9 +62,21 @@ short_description: 基于 LangChain 和 Gemini 的轻量级 RAG 系统
 
 ## 🏗️ 系统架构
 
-采用轻量化模块设计，6个核心模块协同工作，支持PDF解析、向量检索、智能问答和多轮对话。
+**重构升级 (v2.0)**: 采用分层架构设计，替代单体应用架构，大幅提升可维护性和扩展性。
 
-📖 **详细架构**: 查看 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 了解完整的技术设计和模块接口
+### 架构特性
+- 🏗️ **分层架构**: 表示层 + 应用服务层 + 状态管理层
+- 🔧 **服务化设计**: DocumentService、ChatService、ModelService
+- 🛡️ **线程安全**: 单例状态管理 + RLock保护
+- 📦 **模块化**: 清晰的职责边界，松耦合设计
+
+### 核心改进
+- ✅ **消除全局变量**: 4个全局变量 → 线程安全的ApplicationState
+- ✅ **代码量优化**: 642行单体 → 300行重构版 (减少53%)
+- ✅ **业务逻辑分离**: UI层与服务层完全解耦
+- ✅ **并发安全**: 支持多用户同时访问
+
+📖 **详细架构**: 查看 [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) 了解完整的技术设计和模块接口
 
 ## 🚀 快速开始
 
@@ -142,7 +154,7 @@ python app.py
 
 系统支持通过环境变量进行灵活配置，包括模型参数、处理限制、性能调优等。
 
-📖 **详细配置**: 查看 [docs/CONFIGURATION.md](docs/CONFIGURATION.md) 了解完整的配置指南
+📖 **详细配置**: 查看 [docs/architecture/CONFIGURATION.md](docs/architecture/CONFIGURATION.md) 了解完整的配置指南
 
 ## 🌐 部署到 Hugging Face Spaces
 
@@ -184,9 +196,14 @@ python app.py
 
 2. **上传核心文件**
    ```
-   app.py              # 主应用文件
+   app.py              # 主应用文件 (重构版)
    requirements.txt    # 依赖清单
    runtime.txt         # Python 版本
+   src/                # 重构后的源代码目录
+   ├── application/    # 应用服务层
+   │   └── services/   # 核心业务服务
+   └── shared/         # 共享模块
+       └── state/      # 状态管理
    config.py          # 配置模块
    memory.py          # 记忆管理
    utils.py           # 工具函数
