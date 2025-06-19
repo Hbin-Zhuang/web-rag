@@ -52,7 +52,11 @@ try:
 
     # 创建服务实例 (使用依赖注入)
     model_service = ModelService(config_service, logger)
-    document_service = DocumentService(model_service)
+    document_service = DocumentService(
+        model_service=model_service,
+        config_service=config_service,
+        logger_service=logger
+    )
     chat_service = ChatService(model_service)
 
     # 创建主UI控制器

@@ -381,3 +381,16 @@ def create_logging_service(config_service) -> LoggingService:
         use_structured_logging=config_service.get_environment().value == "production",
         enable_console_output=True
     )
+
+
+def get_logger() -> LoggingService:
+    """获取日志服务实例（便捷函数）"""
+    return get_logging_service()
+
+
+def setup_logging(config_service=None) -> LoggingService:
+    """设置日志系统（便捷函数）"""
+    if config_service:
+        return create_logging_service(config_service)
+    else:
+        return create_default_logging_service()

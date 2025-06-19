@@ -7,14 +7,30 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.schema import BaseMessage, HumanMessage, AIMessage
-from config import Config
-from utils import logger, format_timestamp
+
+# 使用新的基础设施服务
+from src.infrastructure.config.config_migration_adapter import get_legacy_config
+from src.infrastructure.utilities import get_utility_service
+from src.infrastructure import get_logger
 
 class ConversationManager:
     """对话管理器"""
 
-    def __init__(self, max_history_length: int = None):
-        self.max_history_length = max_history_length or Config.MAX_HISTORY_LENGTH
+    def __init__(self, max_history_length: int = None, config_service=None, logger_service=None, utility_service=None):
+        """初始化对话管理器
+
+        Args:
+            max_history_length: 最大历史长度
+            config_service: 配置服务实例
+            logger_service: 日志服务实例
+            utility_service: 工具服务实例
+        """
+        # 获取服务实例 (支持依赖注入)
+        self.config = config_service or get_legacy_config()
+        self.logger = logger_service or get_logger()
+        self.utility = utility_service or get_utility_service()
+
+        self.max_history_length = max_history_length or self.config.MAX_HISTORY_LENGTH
         self.memory = ConversationBufferWindowMemory(
             k=self.max_history_length,
             return_messages=True,
@@ -28,7 +44,10 @@ class ConversationManager:
         """初始化会话"""
         self.session_id = self._generate_session_id()
         self.session_start_time = datetime.now()
-        logger.info(f"新会话已创建: {self.session_id}")
+        self.logger.info("新会话已创建", extra={
+            "session_id": self.session_id,
+            "start_time": self.utility.format_timestamp(self.session_start_time)
+        })
 
     def _generate_session_id(self) -> str:
         """生成会话ID"""
@@ -45,13 +64,13 @@ class ConversationManager:
         """
         try:
             if not content.strip():
-                logger.warning("消息内容为空，跳过添加")
+                self.logger.warning("消息内容为空，跳过添加")
                 return
 
             # 创建消息对象
             timestamp = datetime.now()
             message_metadata = {
-                "timestamp": format_timestamp(timestamp),
+                "timestamp": self.utility.format_timestamp(timestamp),
                 "session_id": self.session_id,
                 **(metadata or {})
             }
@@ -61,7 +80,7 @@ class ConversationManager:
             elif role.lower() == 'ai':
                 message = AIMessage(content=content)
             else:
-                logger.error(f"不支持的消息角色: {role}")
+                self.logger.error(f"不支持的消息角色: {role}")
                 return
 
             # 添加元数据到消息
@@ -74,10 +93,17 @@ class ConversationManager:
             else:
                 self.memory.chat_memory.add_ai_message(content)
 
-            logger.debug(f"消息已添加: {role} - {content[:50]}...")
+            self.logger.debug("消息已添加", extra={
+                "role": role,
+                "content_preview": self.utility.truncate_text(content, 50),
+                "session_id": self.session_id
+            })
 
         except Exception as e:
-            logger.error(f"添加消息失败: {e}")
+            self.logger.error("添加消息失败", exception=e, extra={
+                "role": role,
+                "session_id": self.session_id
+            })
 
     def get_history(self, limit: int = None) -> List[Dict[str, Any]]:
         """
@@ -111,7 +137,7 @@ class ConversationManager:
             return formatted_history
 
         except Exception as e:
-            logger.error(f"获取对话历史失败: {e}")
+            self.logger.error("获取对话历史失败", exception=e, extra={"session_id": self.session_id})
             return []
 
     def get_recent_context(self, include_messages: int = 5) -> str:
@@ -138,7 +164,7 @@ class ConversationManager:
             return "\n".join(context_parts)
 
         except Exception as e:
-            logger.error(f"获取对话上下文失败: {e}")
+            self.logger.error("获取对话上下文失败", exception=e, extra={"session_id": self.session_id})
             return ""
 
     def get_memory_variables(self) -> Dict[str, Any]:
@@ -146,16 +172,16 @@ class ConversationManager:
         try:
             return self.memory.load_memory_variables({})
         except Exception as e:
-            logger.error(f"获取内存变量失败: {e}")
+            self.logger.error("获取内存变量失败", exception=e, extra={"session_id": self.session_id})
             return {}
 
     def clear_history(self) -> None:
         """清空对话历史"""
         try:
             self.memory.clear()
-            logger.info(f"对话历史已清空: {self.session_id}")
+            self.logger.info("对话历史已清空", extra={"session_id": self.session_id})
         except Exception as e:
-            logger.error(f"清空对话历史失败: {e}")
+            self.logger.error("清空对话历史失败", exception=e, extra={"session_id": self.session_id})
 
     def reset_session(self) -> str:
         """重置会话"""
@@ -164,13 +190,17 @@ class ConversationManager:
             self.clear_history()
 
             # 创建新会话
+            old_session_id = self.session_id
             self._init_session()
 
-            logger.info(f"会话已重置: {self.session_id}")
+            self.logger.info("会话已重置", extra={
+                "old_session_id": old_session_id,
+                "new_session_id": self.session_id
+            })
             return self.session_id
 
         except Exception as e:
-            logger.error(f"重置会话失败: {e}")
+            self.logger.error("重置会话失败", exception=e, extra={"session_id": self.session_id})
             return self.session_id
 
     def get_session_info(self) -> Dict[str, Any]:
@@ -185,7 +215,7 @@ class ConversationManager:
 
             return {
                 "session_id": self.session_id,
-                "start_time": format_timestamp(self.session_start_time) if self.session_start_time else None,
+                "start_time": self.utility.format_timestamp(self.session_start_time) if self.session_start_time else None,
                 "duration_seconds": session_duration,
                 "message_count": len(history),
                 "max_history_length": self.max_history_length,
@@ -193,7 +223,7 @@ class ConversationManager:
             }
 
         except Exception as e:
-            logger.error(f"获取会话信息失败: {e}")
+            self.logger.error("获取会话信息失败", exception=e, extra={"session_id": self.session_id})
             return {
                 "session_id": self.session_id,
                 "error": str(e)
@@ -208,15 +238,15 @@ class ConversationManager:
             return {
                 "session_info": session_info,
                 "messages": history,
-                "export_time": format_timestamp()
+                "export_time": self.utility.format_timestamp()
             }
 
         except Exception as e:
-            logger.error(f"导出对话历史失败: {e}")
+            self.logger.error("导出对话历史失败", exception=e, extra={"session_id": self.session_id})
             return {
                 "session_info": {"session_id": self.session_id},
                 "messages": [],
-                "export_time": format_timestamp(),
+                "export_time": self.utility.format_timestamp(),
                 "error": str(e)
             }
 
@@ -235,5 +265,5 @@ class ConversationManager:
             return f"本次对话包含 {total_messages} 条消息（用户 {human_messages} 条，助手 {ai_messages} 条）"
 
         except Exception as e:
-            logger.error(f"获取对话摘要失败: {e}")
+            self.logger.error("获取对话摘要失败", exception=e, extra={"session_id": self.session_id})
             return "获取对话摘要失败"

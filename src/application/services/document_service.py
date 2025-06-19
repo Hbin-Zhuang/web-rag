@@ -14,26 +14,48 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-from config import Config
-from utils import logger
+# 使用新的基础设施服务
+from src.infrastructure.config.config_migration_adapter import get_legacy_config
+from src.infrastructure.utilities import get_utility_service
+from src.infrastructure import get_logger
 from src.shared.state.application_state import app_state, FileInfo
 
 
 class DocumentService:
     """文档处理服务"""
 
-    def __init__(self, model_service=None):
+    def __init__(self, model_service=None, config_service=None, logger_service=None, utility_service=None):
         """初始化文档服务
 
         Args:
             model_service: 模型管理服务实例，用于依赖注入
+            config_service: 配置服务实例
+            logger_service: 日志服务实例
+            utility_service: 工具服务实例
         """
         self.model_service = model_service
+
+        # 获取服务实例 (支持依赖注入)
+        if config_service:
+            # 如果提供了ConfigurationService，使用ConfigMigrationAdapter适配
+            from src.infrastructure.config.config_migration_adapter import ConfigMigrationAdapter
+            self.config = ConfigMigrationAdapter(config_service)
+        else:
+            self.config = get_legacy_config()
+        self.logger = logger_service or get_logger()
+        self.utility = utility_service or get_utility_service()
+
+        # 使用配置服务初始化文本分割器
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
+            chunk_size=self.config.CHUNK_SIZE,
+            chunk_overlap=self.config.CHUNK_OVERLAP,
             length_function=len,
         )
+
+        self.logger.info("DocumentService 初始化完成", extra={
+            "chunk_size": self.config.CHUNK_SIZE,
+            "chunk_overlap": self.config.CHUNK_OVERLAP
+        })
 
     def process_pdf(self, file) -> str:
         """
@@ -45,34 +67,37 @@ class DocumentService:
         Returns:
             处理结果消息
         """
-        print(f"DocumentService: 开始处理文件: {file}")
+        self.logger.info("开始处理PDF文件", extra={"file": str(file)})
 
         if file is None:
+            self.logger.warning("未提供文件")
             return "❌ 请选择一个 PDF 文件"
 
         try:
             # 获取文件路径和名称
             file_path, file_name = self._get_file_info(file)
 
-            print(f"文件路径: {file_path}")
-            print(f"文件名: {file_name}")
+            self.logger.info("获取文件信息", extra={
+                "file_path": file_path,
+                "file_name": file_name
+            })
 
-            # 检查文件是否存在
-            if not os.path.exists(file_path):
-                return f"❌ 文件不存在: {file_path}"
+            # 验证文件
+            if not self._validate_file(file_path):
+                return f"❌ 文件验证失败: {file_path}"
 
-            print("✅ 系统准备完成，将添加新文档到现有知识库")
+            self.logger.info("文件验证通过，开始处理文档")
 
             # 加载并处理PDF
             documents = self._load_pdf(file_path)
             if not documents:
                 return "❌ PDF 文件为空或无法读取"
 
-            print(f"成功加载 {len(documents)} 页文档")
+            self.logger.info("成功加载文档", extra={"pages": len(documents)})
 
             # 分割文档
             texts = self._split_documents(documents)
-            print(f"文档分割为 {len(texts)} 个片段")
+            self.logger.info("文档分割完成", extra={"chunks": len(texts)})
 
             # 创建向量存储
             success = self._create_vector_store(texts)
@@ -82,12 +107,16 @@ class DocumentService:
             # 更新文件记录
             self._update_file_record(file_name, len(documents), len(texts))
 
-            print("✅ 文档处理完成")
+            self.logger.info("文档处理完成", extra={
+                "file_name": file_name,
+                "pages": len(documents),
+                "chunks": len(texts)
+            })
             return f"✅ 文档 '{file_name}' 处理完成！\\n📄 页数: {len(documents)}\\n📝 文档片段: {len(texts)}"
 
         except Exception as e:
             error_msg = f"❌ 处理文档时发生错误: {str(e)}"
-            print(error_msg)
+            self.logger.error("文档处理失败", exception=e, extra={"file": str(file)})
             return error_msg
 
     def process_pdf_and_update_status(self, file, selected_model: str) -> Tuple[str, str, str, str]:
@@ -129,58 +158,82 @@ class DocumentService:
             file_name = Path(file_path).name
         return file_path, file_name
 
+    def _validate_file(self, file_path: str) -> bool:
+        """验证文件是否有效"""
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            self.logger.error(f"文件不存在: {file_path}")
+            return False
+
+        # 验证文件类型
+        if not self.utility.validate_file_type(file_path, self.config.ALLOWED_FILE_TYPES):
+            self.logger.error(f"不支持的文件类型: {file_path}")
+            return False
+
+        # 验证文件大小
+        if not self.utility.validate_file_size(file_path, self.config.MAX_FILE_SIZE_MB):
+            self.logger.error(f"文件大小超过限制: {file_path}")
+            return False
+
+        # 计算文件哈希（用于去重检测）
+        file_hash = self.utility.calculate_file_hash(file_path)
+        if file_hash:
+            self.logger.debug(f"文件哈希计算完成: {file_path} -> {file_hash[:8]}...")
+
+        return True
+
     def _load_pdf(self, file_path: str):
         """加载PDF文档"""
-        print("正在加载 PDF...")
+        self.logger.info("正在加载 PDF...")
         loader = PyPDFLoader(file_path)
         documents = loader.load()
         return documents
 
     def _split_documents(self, documents):
         """分割文档"""
-        print("正在分割文档...")
+        self.logger.info("正在分割文档...")
         texts = self.text_splitter.split_documents(documents)
         return texts
 
     def _create_vector_store(self, texts) -> bool:
         """创建或更新向量存储"""
         try:
-            print("正在创建嵌入...")
+            self.logger.info("正在创建嵌入...")
 
             # 创建嵌入模型
             embeddings = self._create_embeddings()
             if not embeddings:
                 return False
 
-            print("正在处理向量数据库...")
+            self.logger.info("正在处理向量数据库...")
 
             # 检查是否已有向量数据库
             if app_state.vectorstore is not None:
-                print("检测到已有向量数据库，将添加新文档...")
+                self.logger.info("检测到已有向量数据库，将添加新文档...")
                 try:
                     app_state.vectorstore.add_documents(texts)
-                    print("✅ 新文档已添加到现有向量数据库")
+                    self.logger.info("✅ 新文档已添加到现有向量数据库")
                 except Exception as e:
-                    print(f"❌ 添加文档到向量数据库失败: {e}")
+                    self.logger.error("添加文档到向量数据库失败", exception=e, extra={"file": str(file)})
                     # 重新创建向量数据库
-                    print("正在重新创建向量数据库...")
+                    self.logger.info("正在重新创建向量数据库...")
                     app_state.vectorstore = Chroma.from_documents(
                         documents=texts,
                         embedding=embeddings
                     )
-                    print("✅ 向量数据库重新创建成功")
+                    self.logger.info("✅ 向量数据库重新创建成功")
             else:
-                print("创建新的向量数据库...")
+                self.logger.info("创建新的向量数据库...")
                 app_state.vectorstore = Chroma.from_documents(
                     documents=texts,
                     embedding=embeddings
                 )
-                print("✅ 向量数据库创建成功")
+                self.logger.info("✅ 向量数据库创建成功")
 
             return True
 
         except Exception as e:
-            print(f"❌ 向量存储创建失败: {e}")
+            self.logger.error("向量存储创建失败", exception=e)
             return False
 
     def _create_embeddings(self):
@@ -190,19 +243,19 @@ class DocumentService:
                 model="models/embedding-001",
                 request_timeout=120
             )
-            print("✅ Embedding 模型初始化成功")
+            self.logger.info("✅ Embedding 模型初始化成功")
             return embeddings
         except Exception as e:
-            print(f"❌ Embedding 模型初始化失败，尝试备用方案: {e}")
+            self.logger.error("Embedding 模型初始化失败，尝试备用方案", exception=e)
             try:
                 embeddings = GoogleGenerativeAIEmbeddings(
                     model="models/text-embedding-004",
                     request_timeout=120
                 )
-                print("✅ 使用备用 embedding 模型成功")
+                self.logger.info("✅ 使用备用 embedding 模型成功")
                 return embeddings
             except Exception as e2:
-                print(f"❌ 无法初始化 embedding 模型: {str(e2)}")
+                self.logger.error("无法初始化 embedding 模型", exception=e2)
                 return None
 
     def _update_file_record(self, file_name: str, pages: int, chunks: int):

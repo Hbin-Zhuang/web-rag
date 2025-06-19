@@ -13,6 +13,12 @@ from .config.configuration_service import (
     create_config_service
 )
 
+# 配置迁移适配器
+from .config.config_migration_adapter import (
+    ConfigMigrationAdapter,
+    get_legacy_config
+)
+
 # 日志服务
 from .logging.logging_service import (
     ILoggingService,
@@ -21,7 +27,9 @@ from .logging.logging_service import (
     PerformanceLogger,
     performance_monitor,
     get_logging_service,
-    create_logging_service
+    create_logging_service,
+    get_logger,
+    setup_logging
 )
 
 # 依赖注入
@@ -39,6 +47,14 @@ from .di.container import (
     register_instance,
     resolve,
     try_resolve
+)
+
+# 工具服务
+from .utilities import (
+    IUtilityService,
+    UtilityService,
+    ProgressTracker,
+    get_utility_service
 )
 
 # 外部服务接口
@@ -83,6 +99,15 @@ from .factories.infrastructure_factory import (
     get_container as get_di_container
 )
 
+# 便捷函数
+def get_legacy_config_instance():
+    """获取兼容性配置实例"""
+    return get_legacy_config()
+
+def get_utility():
+    """获取工具服务实例"""
+    return get_utility_service()
+
 __all__ = [
     # 配置服务
     'IConfigurationService',
@@ -91,6 +116,12 @@ __all__ = [
     'ConfigurationValidationResult',
     'get_config_service',
     'create_config_service',
+    'get_config',
+
+    # 配置迁移适配器
+    'ConfigMigrationAdapter',
+    'get_legacy_config',
+    'get_legacy_config_instance',
 
     # 日志服务
     'ILoggingService',
@@ -100,6 +131,8 @@ __all__ = [
     'performance_monitor',
     'get_logging_service',
     'create_logging_service',
+    'get_logger',
+    'setup_logging',
 
     # 依赖注入
     'IDependencyContainer',
@@ -138,6 +171,13 @@ __all__ = [
     'VectorStoreException',
     'RateLimitException',
     'HealthCheckException',
+
+    # 工具服务
+    'IUtilityService',
+    'UtilityService',
+    'ProgressTracker',
+    'get_utility_service',
+    'get_utility',
 
     # 基础设施工厂
     'InfrastructureFactory',

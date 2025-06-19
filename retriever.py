@@ -1,280 +1,268 @@
 """
-语义检索和答案生成模块
-负责检索相关文档并生成回答
+检索增强生成 (RAG) 模块
+负责文档检索和回答生成
 """
 
+import time
 from typing import List, Dict, Any, Optional
 from langchain.schema import Document
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
-from config import Config
-from utils import logger
-from indexer import DocumentIndexer
-from memory import ConversationManager
 
-class RAGRetriever:
-    """RAG检索器"""
+# 使用新的基础设施服务
+from src.infrastructure.config.config_migration_adapter import get_legacy_config
+from src.infrastructure import get_logger
 
-    def __init__(self, indexer: DocumentIndexer, memory_manager: ConversationManager):
-        self.indexer = indexer
-        self.memory_manager = memory_manager
-        self.llm = None
+class DocumentRetriever:
+    """文档检索器"""
+
+    def __init__(self, vectorstore=None, config_service=None, logger_service=None):
+        """初始化文档检索器
+
+        Args:
+            vectorstore: 向量存储实例
+            config_service: 配置服务实例
+            logger_service: 日志服务实例
+        """
+        # 获取服务实例 (支持依赖注入)
+        self.config = config_service or get_legacy_config()
+        self.logger = logger_service or get_logger()
+
+        self.vectorstore = vectorstore
         self.qa_chain = None
-        self._initialize_llm()
-        self._initialize_qa_chain()
+        self._create_qa_chain()
 
-    def _initialize_llm(self):
-        """初始化大语言模型"""
+    def _create_qa_chain(self):
+        """创建问答链"""
         try:
-            if not Config.validate_config():
-                logger.error("配置验证失败，请检查GOOGLE_API_KEY")
+            if not self.vectorstore:
+                self.logger.warning("向量存储未提供，QA链创建延迟")
                 return
 
-            self.llm = ChatGoogleGenerativeAI(
-                model=Config.CHAT_MODEL,
-                google_api_key=Config.GOOGLE_API_KEY,
-                temperature=0.1,
-                max_tokens=Config.MAX_TOKENS
+            if not self.config.validate_config():
+                self.logger.error("配置验证失败，请检查GOOGLE_API_KEY")
+                return
+
+            # 创建语言模型
+            llm = ChatGoogleGenerativeAI(
+                model=self.config.CHAT_MODEL,
+                temperature=0.3,
+                max_tokens=self.config.MAX_TOKENS,
+                google_api_key=self.config.GOOGLE_API_KEY
             )
-            logger.info(f"语言模型初始化成功: {Config.CHAT_MODEL}")
-
-        except Exception as e:
-            logger.error(f"语言模型初始化失败: {e}")
-            self.llm = None
-
-    def _initialize_qa_chain(self):
-        """初始化问答链"""
-        try:
-            if not self.llm:
-                logger.error("语言模型未初始化，无法创建问答链")
-                return
-
-            # 创建自定义提示模板
-            prompt_template = self._create_prompt_template()
-
-            # 获取向量存储
-            vectorstore = self.indexer.get_vectorstore()
-            if not vectorstore:
-                logger.error("向量数据库不可用，无法创建问答链")
-                return
 
             # 创建检索器
-            retriever = vectorstore.as_retriever(
-                search_kwargs={"k": Config.SIMILARITY_TOP_K}
+            retriever = self.vectorstore.as_retriever(
+                search_kwargs={"k": self.config.SIMILARITY_TOP_K}
             )
 
-            # 创建问答链
+            # 创建提示模板
+            template = """
+请基于以下上下文信息来回答问题。如果无法从上下文中找到答案，请如实说明。
+
+上下文信息:
+{context}
+
+问题: {question}
+
+请提供准确、有用的回答:
+"""
+
+            prompt = PromptTemplate(
+                template=template,
+                input_variables=["context", "question"]
+            )
+
+            # 创建QA链
             self.qa_chain = RetrievalQA.from_chain_type(
-                llm=self.llm,
+                llm=llm,
                 chain_type="stuff",
                 retriever=retriever,
-                chain_type_kwargs={
-                    "prompt": prompt_template,
-                    "memory": self.memory_manager.memory
-                },
+                chain_type_kwargs={"prompt": prompt},
                 return_source_documents=True
             )
 
-            logger.info("问答链初始化成功")
+            self.logger.info("QA链创建成功", extra={
+                "chat_model": self.config.CHAT_MODEL,
+                "max_tokens": self.config.MAX_TOKENS,
+                "similarity_top_k": self.config.SIMILARITY_TOP_K
+            })
 
         except Exception as e:
-            logger.error(f"问答链初始化失败: {e}")
+            self.logger.error("QA链创建失败", exception=e)
             self.qa_chain = None
 
-    def _create_prompt_template(self) -> PromptTemplate:
-        """创建RAG提示模板"""
-        template = """你是一个专业的AI助手，专门基于提供的文档内容来回答用户问题。
-
-请遵循以下规则：
-1. 仅基于提供的上下文内容回答问题
-2. 如果上下文中没有相关信息，请明确说明"根据提供的文档内容，我无法找到相关信息"
-3. 回答要准确、简洁且有帮助
-4. 如果可能，请引用具体的文档内容
-5. 使用中文回答
-
-对话历史：
-{chat_history}
-
-上下文文档：
-{context}
-
-用户问题：{question}
-
-请基于上述文档内容回答用户问题："""
-
-        return PromptTemplate(
-            template=template,
-            input_variables=["context", "question", "chat_history"]
-        )
-
-    def retrieve_docs(self, query: str, k: int = None) -> List[Document]:
+    def query(self, question: str, include_sources: bool = True) -> Dict[str, Any]:
         """
-        检索相关文档
+        查询文档并生成回答
 
         Args:
-            query: 查询文本
-            k: 返回的文档数量
-
-        Returns:
-            相关文档列表
-        """
-        try:
-            if not query.strip():
-                logger.warning("查询文本为空")
-                return []
-
-            # 使用索引器进行相似性搜索
-            k = k or Config.SIMILARITY_TOP_K
-            documents = self.indexer.search_similar_documents(query, k=k)
-
-            logger.info(f"检索到 {len(documents)} 个相关文档")
-            return documents
-
-        except Exception as e:
-            logger.error(f"文档检索失败: {e}")
-            return []
-
-    def generate_answer(self, query: str, include_sources: bool = True) -> Dict[str, Any]:
-        """
-        生成基于检索文档的回答
-
-        Args:
-            query: 用户查询
+            question: 用户问题
             include_sources: 是否包含源文档信息
 
         Returns:
-            包含回答和元数据的字典
+            包含回答和源文档的字典
         """
+        start_time = time.time()
+
         try:
-            if not query.strip():
+            if not question.strip():
+                self.logger.warning("查询问题为空")
                 return {
-                    "answer": "请提供有效的问题。",
+                    "answer": "请提供一个有效的问题。",
                     "sources": [],
-                    "error": "空查询"
+                    "query_time": 0.0
                 }
 
             if not self.qa_chain:
-                logger.error("问答链未初始化")
+                self.logger.error("QA链未初始化")
                 return {
-                    "answer": "系统初始化中，请稍后再试。",
+                    "answer": "系统未就绪，请稍后再试或检查配置。",
                     "sources": [],
-                    "error": "问答链未初始化"
+                    "query_time": 0.0
                 }
 
-            # 获取对话上下文
-            chat_context = self.memory_manager.get_recent_context()
-
-            # 执行问答
-            result = self.qa_chain({
-                "query": query,
-                "chat_history": chat_context
+            # 执行查询
+            self.logger.info("开始执行文档查询", extra={
+                "question_preview": question[:100]
             })
 
-            answer = result.get("result", "抱歉，我无法生成回答。")
+            result = self.qa_chain({"query": question})
+
+            query_time = time.time() - start_time
+
+            # 处理结果
+            answer = result.get("result", "抱歉，无法生成回答。")
             source_docs = result.get("source_documents", [])
-
-            # 添加用户问题到记忆
-            self.memory_manager.add_message("human", query)
-
-            # 添加AI回答到记忆
-            self.memory_manager.add_message("ai", answer, {
-                "source_count": len(source_docs)
-            })
 
             # 格式化源文档信息
             sources = []
             if include_sources and source_docs:
                 sources = self._format_source_documents(source_docs)
 
-            logger.info(f"问答完成: 查询='{query[:50]}...', 源文档数={len(source_docs)}")
+            self.logger.info("文档查询完成", extra={
+                "question_preview": question[:50],
+                "answer_preview": answer[:100],
+                "sources_count": len(sources),
+                "query_time": f"{query_time:.2f}s"
+            })
 
             return {
                 "answer": answer,
                 "sources": sources,
-                "source_count": len(source_docs),
-                "query": query
+                "query_time": round(query_time, 2)
             }
 
         except Exception as e:
-            logger.error(f"生成回答失败: {e}")
+            query_time = time.time() - start_time
+            self.logger.error("文档查询失败", exception=e, extra={
+                "question": question[:100],
+                "query_time": f"{query_time:.2f}s"
+            })
+
             return {
-                "answer": "抱歉，处理您的问题时出现错误，请稍后再试。",
+                "answer": f"查询过程中出现错误: {str(e)}",
                 "sources": [],
-                "error": str(e)
+                "query_time": round(query_time, 2)
             }
 
     def _format_source_documents(self, documents: List[Document]) -> List[Dict[str, Any]]:
         """格式化源文档信息"""
         sources = []
+        for i, doc in enumerate(documents, 1):
+            metadata = doc.metadata
 
-        for i, doc in enumerate(documents):
             source_info = {
-                "index": i + 1,
+                "index": i,
                 "content": doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content,
-                "metadata": {
-                    "source_file": doc.metadata.get("source_file", "未知"),
-                    "page": doc.metadata.get("page", "未知"),
-                    "chunk_index": doc.metadata.get("chunk_index", "未知")
-                }
+                "source_file": metadata.get("source_file", "未知来源"),
+                "page": metadata.get("page", "未知页码"),
+                "chunk_id": metadata.get("chunk_id", f"chunk_{i}")
             }
+
             sources.append(source_info)
 
         return sources
 
-    def ask_question(self, question: str) -> Dict[str, Any]:
+    def search_similar_content(self, query: str, k: int = None) -> List[Dict[str, Any]]:
         """
-        简化的问答接口
+        搜索相似内容（不生成回答）
 
         Args:
-            question: 用户问题
+            query: 搜索查询
+            k: 返回结果数量
 
         Returns:
-            回答结果
+            相似文档列表
         """
-        return self.generate_answer(question, include_sources=True)
+        try:
+            if not self.vectorstore:
+                self.logger.error("向量存储不可用")
+                return []
+
+            if not query.strip():
+                self.logger.warning("搜索查询为空")
+                return []
+
+            k = k or self.config.SIMILARITY_TOP_K
+
+            similar_docs = self.vectorstore.similarity_search(query, k=k)
+
+            results = []
+            for i, doc in enumerate(similar_docs, 1):
+                result = {
+                    "rank": i,
+                    "content": doc.page_content,
+                    "metadata": doc.metadata,
+                    "relevance_score": "N/A"  # Chroma doesn't return scores by default
+                }
+                results.append(result)
+
+            self.logger.info("相似内容搜索完成", extra={
+                "query_preview": query[:50],
+                "results_count": len(results),
+                "k": k
+            })
+
+            return results
+
+        except Exception as e:
+            self.logger.error("相似内容搜索失败", exception=e, extra={
+                "query": query[:100]
+            })
+            return []
+
+    def update_vectorstore(self, vectorstore):
+        """更新向量存储"""
+        try:
+            self.vectorstore = vectorstore
+            self._create_qa_chain()  # 重新创建QA链
+
+            self.logger.info("向量存储已更新，QA链重新初始化")
+
+        except Exception as e:
+            self.logger.error("更新向量存储失败", exception=e)
 
     def get_retriever_info(self) -> Dict[str, Any]:
         """获取检索器信息"""
         try:
-            vectorstore = self.indexer.get_vectorstore()
-
             return {
-                "llm_model": Config.CHAT_MODEL,
-                "max_tokens": Config.MAX_TOKENS,
-                "similarity_top_k": Config.SIMILARITY_TOP_K,
-                "vectorstore_available": vectorstore is not None,
-                "qa_chain_available": self.qa_chain is not None,
-                "memory_manager_available": self.memory_manager is not None
+                "qa_chain_ready": self.qa_chain is not None,
+                "vectorstore_ready": self.vectorstore is not None,
+                "chat_model": self.config.CHAT_MODEL,
+                "max_tokens": self.config.MAX_TOKENS,
+                "similarity_top_k": self.config.SIMILARITY_TOP_K,
+                "config_valid": self.config.validate_config()
             }
-
         except Exception as e:
-            logger.error(f"获取检索器信息失败: {e}")
-            return {"error": str(e)}
+            self.logger.error("获取检索器信息失败", exception=e)
+            return {"status": "error", "error": str(e)}
 
-    def reset_qa_chain(self):
-        """重置问答链（例如在更新向量数据库后）"""
+    def clear_cache(self):
+        """清理缓存（如果有的话）"""
         try:
-            logger.info("重置问答链...")
-            self._initialize_qa_chain()
+            # 这里可以实现缓存清理逻辑
+            self.logger.info("检索器缓存已清理")
         except Exception as e:
-            logger.error(f"重置问答链失败: {e}")
-
-    def batch_questions(self, questions: List[str]) -> List[Dict[str, Any]]:
-        """
-        批量处理问题
-
-        Args:
-            questions: 问题列表
-
-        Returns:
-            回答结果列表
-        """
-        results = []
-
-        for i, question in enumerate(questions):
-            logger.info(f"处理批量问题 {i+1}/{len(questions)}")
-            result = self.generate_answer(question)
-            results.append(result)
-
-        return results
+            self.logger.error("清理检索器缓存失败", exception=e)
