@@ -1,16 +1,18 @@
-# 系统架构设计 (v2.0 重构版)
+# 系统架构设计 (v4.0 重构版)
 
 ## 项目概述
 
-基于 LangChain 和 Gemini 的轻量级 RAG 系统，采用**分层架构设计**，大幅提升了可维护性和扩展性。支持本地 PDF 文档读取、Web UI 展示，并可部署到 Hugging Face Spaces。
+基于 LangChain 和 Gemini 的现代化 RAG 系统，采用**分层架构设计**，经过5个阶段的重构，实现了企业级的可维护性、可扩展性和可靠性。支持本地 PDF 文档读取、Web UI 展示，并可部署到 Hugging Face Spaces。
 
-## 架构重构升级 (v2.0)
+## 架构重构升级 (v4.0)
 
-### 重构目标
+### 重构目标 (已完成)
 - ✅ **消除全局变量**: 从4个全局变量改为线程安全的状态管理
 - ✅ **分离关注点**: UI层与业务逻辑完全解耦
 - ✅ **服务化设计**: 按功能域拆分为专门的服务类
 - ✅ **并发安全**: 支持多用户同时访问
+- ✅ **基础设施现代化**: 配置管理、日志服务、依赖注入
+- ✅ **内存管理集成**: 会话持久化、现代化内存服务
 
 ### 技术架构
 
@@ -21,37 +23,48 @@
 - **Web界面**: Gradio (HF Spaces 原生支持)
 - **PDF处理**: PyPDFLoader + RecursiveCharacterTextSplitter
 - **嵌入模型**: GoogleGenerativeAIEmbeddings
-- **架构模式**: 分层架构 + 服务模式 + 单例状态管理
+- **架构模式**: 分层架构 + 服务模式 + 依赖注入 + 状态管理
 
-### 分层架构设计
+### 分层架构设计 (v4.0)
 
 #### 架构层次
 ```
-┌─────────────────────────────────────┐
-│         表示层 (Presentation)        │
-│         app.py - Gradio UI          │
-├─────────────────────────────────────┤
-│         应用层 (Application)         │
-│    src/application/services/        │
-│  ├─ DocumentService (文档处理)       │
-│  ├─ ChatService (聊天问答)          │
-│  └─ ModelService (模型管理)         │
-├─────────────────────────────────────┤
-│          共享层 (Shared)            │
-│     src/shared/state/              │
-│  └─ ApplicationState (状态管理)     │
-├─────────────────────────────────────┤
-│        基础设施层 (Infrastructure)   │
-│  ├─ config.py (配置管理)            │
-│  ├─ memory.py (记忆管理)            │
-│  ├─ utils.py (工具函数)             │
-│  ├─ indexer.py (索引器)             │
-│  ├─ pdf_loader.py (PDF加载器)       │
-│  └─ retriever.py (检索器)           │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│              表示层 (Presentation)           │
+│         app.py - Gradio UI                  │
+│    src/presentation/controllers/            │
+├─────────────────────────────────────────────┤
+│              应用层 (Application)            │
+│          src/application/services/          │
+│  ├─ DocumentService (文档处理)               │
+│  ├─ ChatService (聊天问答)                  │
+│  ├─ ModelService (模型管理)                 │
+│  ├─ MemoryService (内存管理)                │
+│  └─ LegacyMemoryAdapter (向后兼容)          │
+├─────────────────────────────────────────────┤
+│               共享层 (Shared)               │
+│            src/shared/state/                │
+│  └─ ApplicationState (状态管理)             │
+├─────────────────────────────────────────────┤
+│            基础设施层 (Infrastructure)       │
+│          src/infrastructure/                │
+│  ├─ config/ (配置管理)                     │
+│  │   ├─ ConfigurationService               │
+│  │   └─ ConfigMigrationAdapter             │
+│  ├─ logging/ (日志服务)                    │
+│  │   └─ LoggingService                     │
+│  ├─ di/ (依赖注入)                         │
+│  │   └─ DependencyContainer                │
+│  ├─ utilities/ (工具服务)                  │
+│  │   └─ UtilityService                     │
+│  ├─ external/ (外部接口)                   │
+│  │   └─ interfaces.py                      │
+│  └─ factories/ (工厂模式)                  │
+│      └─ InfrastructureFactory              │
+└─────────────────────────────────────────────┘
 ```
 
-#### 目录结构 (重构后)
+#### 目录结构 (v4.0 完整版)
 ```
 web-rag/
 ├── app.py                       # Gradio Web UI 主程序 (重构版)
@@ -62,62 +75,111 @@ web-rag/
 │   │   ├── __init__.py
 │   │   └── services/            # 核心业务服务
 │   │       ├── __init__.py
-│   │       ├── document_service.py    # 文档处理服务
-│   │       ├── chat_service.py        # 聊天问答服务
-│   │       └── model_service.py       # 模型管理服务
-│   └── shared/                  # 共享模块
+│   │       ├── document_service.py       # 文档处理服务
+│   │       ├── chat_service.py           # 聊天问答服务
+│   │       ├── model_service.py          # 模型管理服务
+│   │       ├── memory_service.py         # 内存管理服务
+│   │       └── legacy_memory_adapter.py  # 向后兼容适配器
+│   ├── presentation/            # 表示层
+│   │   ├── __init__.py
+│   │   ├── components/          # UI组件
+│   │   ├── controllers/         # UI控制器
+│   │   └── handlers/            # 事件处理器
+│   ├── shared/                  # 共享模块
+│   │   ├── __init__.py
+│   │   └── state/               # 状态管理
+│   │       ├── __init__.py
+│   │       └── application_state.py     # 应用状态管理
+│   └── infrastructure/          # 基础设施层
 │       ├── __init__.py
-│       └── state/               # 状态管理
+│       ├── config/              # 配置管理
+│       │   ├── __init__.py
+│       │   ├── configuration_service.py
+│       │   └── config_migration_adapter.py
+│       ├── logging/             # 日志服务
+│       │   ├── __init__.py
+│       │   └── logging_service.py
+│       ├── di/                  # 依赖注入
+│       │   ├── __init__.py
+│       │   └── container.py
+│       ├── utilities/           # 工具服务
+│       │   ├── __init__.py
+│       │   └── utility_service.py
+│       ├── external/            # 外部接口
+│       │   ├── __init__.py
+│       │   └── interfaces.py
+│       └── factories/           # 工厂模式
 │           ├── __init__.py
-│           └── application_state.py   # 应用状态管理
-├── pdf_loader.py               # PDF 文档加载和分块处理
-├── indexer.py                  # 文档向量化和索引管理
-├── retriever.py                # 语义检索和答案生成
-├── memory.py                   # 对话记忆和会话管理
-├── config.py                   # 系统配置和常量定义
-├── utils.py                    # 通用工具函数
-├── requirements.txt            # Python 依赖包列表
-├── README.md                   # 项目文档和部署说明
-├── .env.example                # 环境变量示例文件
-├── .gitignore                  # Git 忽略规则
-├── STAGE1_COMPLETION_REPORT.md # 阶段1重构报告
-├── chroma_db/                  # Chroma 向量数据库存储目录
-├── images/                     # 项目截图和图片资源
-└── docs/                       # 项目文档目录
-    ├── ARCHITECTURE.md         # 技术架构和模块规范
-    ├── CONFIGURATION.md        # 详细配置和性能调优指南
-    └── DEVELOPMENT_LOG.md      # 开发进度和任务跟踪记录
+│           └── infrastructure_factory.py
+├── conversations/               # 会话持久化存储
+├── uploads/                     # 上传文件临时目录
+├── logs/                        # 日志文件目录
+├── requirements.txt             # Python 依赖包列表
+├── requirements-dev.txt         # 开发依赖
+├── requirements_lock.txt        # 锁定版本依赖
+├── README.md                    # 项目文档和部署说明
+├── env.example                  # 环境变量示例文件
+├── .gitignore                   # Git 忽略规则
+├── runtime.txt                  # Python版本指定
+├── activate_env.sh              # 环境激活脚本
+├── images/                      # 项目截图和图片资源
+└── docs/                        # 项目文档目录
+    ├── README.md                # 文档导航
+    ├── architecture/            # 架构文档
+    │   ├── ARCHITECTURE.md      # 技术架构和模块规范
+    │   ├── CONFIGURATION.md     # 详细配置和性能调优指南
+    │   └── DEVELOPMENT_LOG.md   # 开发进度和任务跟踪记录
+    └── refactor/                # 重构文档
+        ├── STAGE1_COMPLETION_REPORT.md  # 阶段1重构报告
+        ├── STAGE2_COMPLETION_REPORT.md  # 阶段2重构报告
+        ├── STAGE3_COMPLETION_REPORT.md  # 阶段3重构报告
+        ├── STAGE4_COMPLETION_REPORT.md  # 阶段4重构报告
+        └── STAGE5_COMPLETION_REPORT.md  # 阶段5重构报告
 ```
 
-## 模块设计
+## 模块设计 (v4.0)
 
-### 重构后的服务层设计
+### 应用服务层
 
-#### 1. ApplicationState - 应用状态管理 (新增)
-**文件**: `src/shared/state/application_state.py`
+#### 1. MemoryService - 内存管理服务 (新增)
+**文件**: `src/application/services/memory_service.py`
 
-**功能**: 线程安全的全局状态管理，替代原本的全局变量
-- 单例模式设计，确保状态一致性
-- RLock 线程锁保护，支持并发访问
-- 向量存储、QA链、模型配置统一管理
-- 文件信息跟踪和状态变更时间戳
+**功能**: 现代化内存管理和会话持久化
+- 实现IMemoryService接口规范
+- 会话持久化存储（JSON文件后端）
+- 当前会话管理和历史跟踪
+- 对话上下文获取和格式化
+- 会话生命周期管理（创建、保存、删除、清理）
+- 支持依赖注入和现代化配置
 
 **主要接口**:
 ```python
-class ApplicationState:
-    @property
-    def vectorstore(self) -> Optional[Any]
-    @property
-    def qa_chain(self) -> Optional[Any]
-    @property
-    def current_model(self) -> str
+class MemoryService(IMemoryService):
+    # IMemoryService接口实现
+    def save_conversation(self, conversation_id: str, messages: List[ChatMessage]) -> bool
+    def load_conversation(self, conversation_id: str) -> List[ChatMessage]
+    def delete_conversation(self, conversation_id: str) -> bool
+    def list_conversations(self) -> List[Dict[str, Any]]
+    def cleanup_old_conversations(self, days: int = 30) -> int
 
-    def add_uploaded_file(self, file_info: FileInfo) -> None
-    def get_state_info(self) -> Dict[str, Any]
-    def reset_state(self) -> None
+    # 当前会话管理扩展
+    def add_message_to_current_session(self, role: str, content: str, metadata: Dict[str, Any] = None) -> None
+    def get_current_session_history(self, limit: int = None) -> List[ChatMessage]
+    def get_current_session_context(self, include_messages: int = 5) -> str
+    def reset_current_session(self) -> str
+    def get_current_session_info(self) -> Dict[str, Any]
 ```
 
-#### 2. DocumentService - 文档处理服务 (新增)
+#### 2. LegacyMemoryAdapter - 向后兼容适配器 (新增)
+**文件**: `src/application/services/legacy_memory_adapter.py`
+
+**功能**: 完全兼容旧ConversationManager API
+- 内部委托给新MemoryService实现
+- 角色格式转换（human/ai ↔ user/assistant）
+- 数据格式适配和接口桥接
+- 新功能的直接委托访问
+
+#### 3. DocumentService - 文档处理服务 (增强)
 **文件**: `src/application/services/document_service.py`
 
 **功能**: 封装PDF文档处理逻辑
@@ -125,21 +187,15 @@ class ApplicationState:
 - 向量存储创建/更新
 - 文件状态管理
 - 系统状态获取
+- 集成新的基础设施服务
 
-**主要接口**:
-```python
-class DocumentService:
-    def process_pdf(self, file) -> str
-    def process_pdf_and_update_status(self, file, selected_model: str) -> Tuple[str, str, str, str]
-    def get_uploaded_files_count(self) -> int
-    def clear_uploaded_files(self) -> None
-```
-
-#### 3. ChatService - 聊天服务 (新增)
+#### 4. ChatService - 聊天服务 (增强)
 **文件**: `src/application/services/chat_service.py`
 
 **功能**: 封装聊天问答逻辑
-- 聊天对话管理
+- 集成新的MemoryService
+- 增强RAG查询的对话上下文支持
+- 定期自动保存会话
 - QA链创建和管理
 - LLM模型创建
 - 提示模板管理
@@ -148,12 +204,13 @@ class DocumentService:
 ```python
 class ChatService:
     def chat_with_pdf(self, message: str, history: List[List[str]]) -> Tuple[str, List[List[str]]]
-    def reset_qa_chain(self) -> None
-    def is_ready(self) -> bool
-    def get_conversation_history(self) -> List[dict]
+    def reset_conversation_session(self) -> str
+    def save_current_conversation(self) -> bool
+    def get_conversation_summary(self) -> str
+    def get_service_status(self) -> dict
 ```
 
-#### 4. ModelService - 模型服务 (新增)
+#### 5. ModelService - 模型服务
 **文件**: `src/application/services/model_service.py`
 
 **功能**: 封装AI模型管理逻辑
@@ -162,55 +219,79 @@ class ChatService:
 - 模型兼容性检查
 - 模型选择信息
 
-**主要接口**:
+### 共享层
+
+#### 6. ApplicationState - 应用状态管理 (增强)
+**文件**: `src/shared/state/application_state.py`
+
+**功能**: 线程安全的全局状态管理
+- 延迟服务初始化机制
+- 服务注册表和状态管理
+- 统一的服务状态报告
+- 资源清理和会话管理集成
+- 线程安全的服务访问
+
+**新增属性**:
 ```python
-class ModelService:
-    def switch_model(self, model_name: str) -> Tuple[bool, str]
-    def get_model_status(self) -> str
-    def validate_model_compatibility(self, model_name: str) -> Tuple[bool, str]
-    def get_recommended_models(self) -> List[str]
+@property
+def memory_service(self) -> MemoryService
+def chat_service(self) -> ChatService
+def document_service(self) -> DocumentService
 ```
 
-### 基础设施层模块
+### 基础设施层 (v4.0 完整版)
 
-#### 5. config.py - 配置管理
+#### 7. ConfigurationService - 配置管理
+**文件**: `src/infrastructure/config/configuration_service.py`
+
+**功能**: 现代化配置管理
 - 环境变量读取和验证
-- 系统常量定义
-- 开发/生产环境切换
+- 类型安全的配置项访问
+- 配置验证和默认值
+- 环境切换支持
 
-#### 6. pdf_loader.py - PDF处理
-**类**: `PDFLoader`
-- `load_pdf(file_path: str) -> List[Document]`
-- `split_documents(documents: List[Document]) -> List[Document]`
+#### 8. ConfigMigrationAdapter - 配置兼容适配器
+**文件**: `src/infrastructure/config/config_migration_adapter.py`
 
-#### 7. indexer.py - 向量化索引
-**类**: `DocumentIndexer`
-- `create_embeddings(documents: List[Document]) -> VectorStore`
-- `add_documents(documents: List[Document]) -> None`
-- `get_vectorstore() -> Chroma`
+**功能**: 向后兼容性保证
+- 提供与旧Config类完全兼容的接口
+- 内部委托给ConfigurationService
+- 属性映射和方法兼容
 
-#### 8. retriever.py - 检索生成
-**类**: `RAGRetriever`
-- `retrieve_docs(query: str, k: int = 4) -> List[Document]`
-- `generate_answer(query: str, chat_history: List) -> str`
+#### 9. LoggingService - 日志服务
+**文件**: `src/infrastructure/logging/logging_service.py`
 
-#### 9. memory.py - 对话记忆
-**类**: `ConversationManager`
-- `add_message(role: str, content: str) -> None`
-- `get_history(limit: int = 10) -> List[Dict]`
-- `clear_history() -> None`
+**功能**: 结构化日志管理
+- 多级别日志支持
+- 结构化日志输出
+- 性能监控和指标
+- 日志轮转和管理
+
+#### 10. UtilityService - 工具服务
+**文件**: `src/infrastructure/utilities/utility_service.py`
+
+**功能**: 通用工具函数集合
+- 文件操作工具
+- 格式化工具
+- 文本处理工具
+- 进度跟踪器
+
+#### 11. DependencyContainer - 依赖注入容器
+**文件**: `src/infrastructure/di/container.py`
+
+**功能**: 依赖注入管理
+- 服务生命周期管理
+- 自动装配支持
+- 作用域控制
+- 服务解析
 
 ### 表示层
 
-#### 10. app.py - Web界面 (重构版)
-- **重构改进**: 从642行减少到300行 (减少53%)
+#### 12. app.py - Web界面 (重构版)
+- **重构改进**: 从642行减少到178行 (减少72%)
 - **架构优化**: UI层与业务逻辑完全分离
 - **事件处理**: 简化为服务调用包装器
-- **组件**:
-  - PDF 文件上传组件
-  - 聊天界面（用户输入/AI回复）
-  - 文档处理状态显示
-  - 系统配置面板
+- **依赖注入**: 使用基础设施工厂模式
 
 ## 数据流
 
@@ -219,159 +300,82 @@ class ModelService:
 2. 文本向量化 → 存储到向量数据库
 3. 用户查询 → 查询向量化 → 相似性检索
 4. 检索结果 + 对话历史 → Gemini生成回答
-5. 回答返回 + 更新对话记忆
+5. 回答返回 + 更新对话记忆 + 会话持久化
 ```
 
-## API接口设计
+## 核心特性 (v4.0)
 
-### 模块间接口
+### 🔧 现代化架构
+- **分层架构**: 表示层、应用层、共享层、基础设施层
+- **依赖注入**: 全面支持构造函数依赖注入
+- **服务抽象**: 接口驱动设计，易于测试和扩展
+- **状态管理**: 线程安全的统一状态管理
 
-#### PDFLoader接口
-```python
-class PDFLoader:
-    def load_documents(self, file_path: str) -> List[Document]
-    def validate_file(self, file) -> bool
-    def get_file_stats(self, file_path: str) -> Dict[str, Any]
-```
+### 💾 持久化存储
+- **会话持久化**: JSON文件存储会话历史
+- **自动清理**: 定期清理过期会话
+- **数据完整性**: 结构化数据格式和元数据
 
-#### Indexer接口
-```python
-class DocumentIndexer:
-    def create_vector_store(self, documents: List[Document]) -> Chroma
-    def add_documents(self, documents: List[Document]) -> bool
-    def get_vector_count(self) -> int
-    def clear_index(self) -> bool
-```
+### 🔄 向后兼容
+- **完全兼容**: 旧代码无需修改即可工作
+- **渐进迁移**: 支持新旧API同时使用
+- **透明代理**: 旧接口内部使用新服务实现
 
-#### Retriever接口
-```python
-class RAGRetriever:
-    def get_response(self, query: str, session_id: str) -> str
-    def search_documents(self, query: str, k: int = 4) -> List[Document]
-    def get_retrieval_chain(self) -> RetrievalQA
-```
+### 🚀 性能优化
+- **延迟加载**: 服务按需初始化
+- **内存缓存**: 当前会话保持在内存中
+- **批量保存**: 定期批量持久化
+- **结构化日志**: 高效的日志记录和查询
 
-#### Memory接口
-```python
-class ConversationManager:
-    def get_session_memory(self, session_id: str) -> ConversationBufferWindowMemory
-    def add_message(self, session_id: str, role: str, content: str) -> None
-    def clear_session(self, session_id: str) -> bool
-    def get_active_sessions(self) -> List[str]
-```
-
-### 数据模型
-
-#### Document结构
-```python
-@dataclass
-class DocumentMetadata:
-    source: str
-    page: int
-    chunk_id: str
-    timestamp: datetime
-    size: int
-```
-
-#### Session管理
-```python
-@dataclass
-class SessionInfo:
-    session_id: str
-    created_at: datetime
-    last_activity: datetime
-    message_count: int
-```
+### 🛡️ 可靠性
+- **错误处理**: 全面的异常捕获和恢复
+- **健康检查**: 服务状态监控
+- **资源管理**: 自动清理和内存优化
+- **线程安全**: 多用户并发访问支持
 
 ## 扩展点说明
 
-### 1. 文档格式扩展
-在`pdf_loader.py`中添加新的文档处理器：
+### 1. 服务扩展
+添加新的应用服务：
 ```python
-class DocumentLoader:
-    def load_pdf(self, file_path: str) -> List[Document]
-    def load_word(self, file_path: str) -> List[Document]  # 扩展点
-    def load_markdown(self, file_path: str) -> List[Document]  # 扩展点
-```
-
-### 2. 向量存储扩展
-可替换Chroma为其他向量数据库：
-```python
-# 当前实现
-vectorstore = Chroma(...)
-
-# 扩展示例
-vectorstore = Pinecone(...)  # 云端向量数据库
-vectorstore = FAISS(...)     # Facebook向量搜索
-```
-
-### 3. 模型扩展
-支持其他LLM提供商：
-```python
-# 当前实现
-llm = ChatGoogleGenerativeAI(...)
-
-# 扩展示例
-llm = ChatOpenAI(...)        # OpenAI GPT
-llm = ChatAnthropic(...)     # Anthropic Claude
-llm = ChatBedrock(...)       # AWS Bedrock
-```
-
-### 4. 界面扩展
-Gradio组件的自定义和增强：
-```python
-# 当前界面组件
-with gr.Tabs():
-    with gr.TabItem("文档上传"):
-        # 文件上传组件
-    with gr.TabItem("智能问答"):
-        # 聊天界面
-    with gr.TabItem("系统状态"):
-        # 状态监控
-
-# 扩展示例
-    with gr.TabItem("文档管理"):  # 新增功能
-        # 文档列表、删除、重新索引
-    with gr.TabItem("分析报告"):  # 新增功能
-        # 使用统计、性能分析
-```
-
-### 5. 检索策略扩展
-自定义检索和排序算法：
-```python
-class AdvancedRetriever(RAGRetriever):
-    def hybrid_search(self, query: str) -> List[Document]:
-        # 混合搜索：语义 + 关键词
-        pass
-
-    def rerank_results(self, docs: List[Document], query: str) -> List[Document]:
-        # 结果重排序
+class NewService:
+    def __init__(self, config_service=None, logger_service=None):
+        # 标准依赖注入模式
         pass
 ```
 
-## 性能考量
+### 2. 基础设施扩展
+添加新的基础设施服务：
+```python
+class NewInfrastructureService(INewService):
+    # 实现接口
+    pass
+```
 
-### 内存管理
-- 文档分块策略优化
-- 向量缓存机制
-- 会话内存限制
+### 3. 持久化后端扩展
+替换存储后端：
+```python
+class DatabaseMemoryService(IMemoryService):
+    # 数据库存储实现
+    pass
+```
 
-### 响应时间优化
-- 异步处理模式
-- 批量向量化
-- 索引预加载
-
-### 扩展性设计
-- 模块化架构
-- 配置驱动的功能开关
-- 插件化扩展机制
+### 4. 界面组件扩展
+添加新的UI组件：
+```python
+# src/presentation/components/new_component.py
+class NewComponent:
+    def build(self):
+        # Gradio组件实现
+        pass
+```
 
 ## 部署配置
 
 ### Hugging Face Spaces
 ```yaml
 ---
-title: Web RAG System
+title: Web RAG System v4.0
 emoji: 📚
 colorFrom: blue
 colorTo: green
@@ -386,20 +390,42 @@ license: mit
 ### 环境变量
 详细的配置参数和性能调优指南请参见 [CONFIGURATION.md](CONFIGURATION.md)
 
+## 重构历程
+
+| 阶段 | 状态 | 重构内容 | 主要成果 |
+|------|------|----------|----------|
+| 阶段1 | ✅ 完成 | 核心服务抽取与状态管理重构 | 分层架构建立 |
+| 阶段2 | ✅ 完成 | UI控制器分离与表示层重构 | 组件化UI架构 |
+| 阶段3 | ✅ 完成 | 基础设施层抽象与依赖注入实现 | 现代化基础设施 |
+| 阶段4 | ✅ 完成 | 配置和工具模块重组优化 | 统一配置管理 |
+| 阶段5 | ✅ 完成 | 内存管理服务集成优化 | 会话持久化 |
+| 阶段6 | 🔄 进行中 | 目录结构最终整理与文档完善 | - |
+| 阶段7 | 📋 待开始 | 性能优化与扩展性增强 | - |
+
+**当前版本**: v4.0 (内存管理服务优化完成)
+
 ## 技术决策
 
-### 为什么选择 Chroma？
-- 零配置，文件存储
-- 适合原型开发和演示
-- 无需额外服务
+### 为什么选择分层架构？
+- 清晰的职责分离
+- 便于测试和维护
+- 支持独立演进
+- 符合企业开发标准
 
-### 为什么选择 Gradio？
-- HF Spaces 原生支持
-- ChatGPT 风格界面
-- 快速开发迭代
+### 为什么使用依赖注入？
+- 降低模块耦合
+- 便于单元测试
+- 支持配置驱动
+- 提高代码可维护性
 
-### 为什么选择轻量化架构？
-- 部署简单
-- 开发速度快
-- 调试友好
-- 适合原型验证
+### 为什么实现向后兼容？
+- 平滑迁移路径
+- 降低升级风险
+- 保护已有投资
+- 渐进式重构
+
+### 为什么选择JSON存储？
+- 轻量级，无需额外依赖
+- 便于调试和查看
+- 支持结构化数据
+- 易于备份和迁移
