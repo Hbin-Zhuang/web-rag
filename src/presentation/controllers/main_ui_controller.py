@@ -57,13 +57,13 @@ class MainUIController(UIController):
         try:
             # 创建主界面
             with gr.Blocks(
-                title="Web RAG 系统 v4.0 (企业级版)",
+                title="Web RAG 系统 v4.0 (专业版)",
                 theme=gr.themes.Soft()
             ) as self.demo:
 
                 # 标题和说明
-                gr.Markdown("# 🚀 Web RAG 系统 v4.0 (企业级版)")
-                gr.Markdown("基于 Google Gemini 的智能文档问答系统 - 企业级性能优化与扩展性增强")
+                gr.Markdown("# 🚀 Web RAG 系统")
+                gr.Markdown("基于 Google Gemini 的智能文档问答系统")
 
                 with gr.Tabs():
                     # 上传Tab
@@ -444,9 +444,9 @@ class MainUIController(UIController):
             return
 
         try:
-            print("🚀 启动 Web RAG 系统 v4.0 (企业级版)...")
+            print("🚀 启动 Web RAG 系统 v4.0 (专业版)...")
             print(f"📋 API 密钥状态: {'✅ 已配置' if os.getenv('GOOGLE_API_KEY') else '❌ 未配置'}")
-            print(f"🏗️ 架构: 企业级分层架构 + 性能优化 + 扩展性增强")
+            print(f"🏗️ 架构: 现代化分层架构 + 性能优化 + 扩展性增强")
             print(f"🎯 当前模型: {self.model_service.get_current_model()}")
 
             # 检测运行环境
