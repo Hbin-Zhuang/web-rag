@@ -287,6 +287,10 @@ class ApplicationState:
                 "services": services_status
             }
 
+    def get_status_info(self) -> Dict[str, Any]:
+        """获取状态信息（兼容性别名）"""
+        return self.get_state_info()
+
     def reset_state(self):
         """重置状态（保留配置和服务实例）"""
         with self._state_lock:
@@ -337,3 +341,11 @@ class ApplicationState:
 
 # 全局状态实例
 app_state = ApplicationState()
+
+
+def get_application_state() -> ApplicationState:
+    """获取应用状态实例"""
+    return app_state
+def get_application_state() -> ApplicationState:
+    """获取应用状态实例"""
+    return app_state

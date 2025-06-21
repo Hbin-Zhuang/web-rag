@@ -8,3 +8,4 @@ pypdf>=3.17.0
 python-dotenv>=1.0.0
 faiss-cpu>=1.7.4
 pydantic==2.10.6
+psutil>=5.8.0

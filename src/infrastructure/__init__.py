@@ -87,6 +87,27 @@ from .external.interfaces import (
     HealthCheckException
 )
 
+# 监控服务
+from .monitoring import (
+    MetricsService,
+    MetricType,
+    MetricValue,
+    TimeSeriesData,
+    get_metrics_service,
+    HealthCheckService,
+    HealthStatus,
+    ComponentHealth,
+    SystemHealth,
+    get_health_check_service,
+    PerformanceDashboard,
+    create_performance_dashboard,
+    MonitoringMiddleware,
+    monitor_performance,
+    track_metrics,
+    RAGMetricsTracker,
+    get_rag_metrics_tracker
+)
+
 # 基础设施工厂
 from .factories.infrastructure_factory import (
     InfrastructureFactory,
@@ -97,6 +118,49 @@ from .factories.infrastructure_factory import (
     get_config,
     get_logger,
     get_container as get_di_container
+)
+
+# 缓存服务
+from .caching import (
+    CacheService,
+    CacheStrategy,
+    CacheEntry,
+    CacheStats,
+    get_cache_service,
+    DocumentCache,
+    DocumentCacheEntry,
+    get_document_cache,
+    QueryCache,
+    QueryCacheEntry,
+    get_query_cache,
+    cache_result,
+    cache_embedding,
+    cache_with_ttl,
+    cache_rag_query,
+    cache_document_processing,
+    CacheMiddleware,
+    get_cache_middleware
+)
+
+# 扩展模块 (阶段7新增)
+from .extensions import (
+    PluginManager,
+    ExtensionPointRegistry,
+    RAGExtensionPoints,
+    AutoScaler,
+    get_plugin_manager,
+    get_extension_registry,
+    get_rag_extensions,
+    get_auto_scaler
+)
+
+# 生产配置 (阶段7新增)
+from .config.production_config import (
+    ProductionConfigManager,
+    SecurityConfig,
+    PerformanceConfig,
+    MonitoringConfig,
+    get_production_config
 )
 
 # 预定义__all__
@@ -171,6 +235,25 @@ __all__ = [
     'get_utility_service',
     'get_utility',
 
+    # 监控服务
+    'MetricsService',
+    'MetricType',
+    'MetricValue',
+    'TimeSeriesData',
+    'get_metrics_service',
+    'HealthCheckService',
+    'HealthStatus',
+    'ComponentHealth',
+    'SystemHealth',
+    'get_health_check_service',
+    'PerformanceDashboard',
+    'create_performance_dashboard',
+    'MonitoringMiddleware',
+    'monitor_performance',
+    'track_metrics',
+    'RAGMetricsTracker',
+    'get_rag_metrics_tracker',
+
     # 基础设施工厂
     'InfrastructureFactory',
     'get_infrastructure_factory',
@@ -183,7 +266,44 @@ __all__ = [
 
     # 快速访问函数
     'get_memory_service',
-    'get_conversation_manager'
+    'get_conversation_manager',
+
+    # 缓存服务
+    'CacheService',
+    'CacheStrategy',
+    'CacheEntry',
+    'CacheStats',
+    'get_cache_service',
+    'DocumentCache',
+    'DocumentCacheEntry',
+    'get_document_cache',
+    'QueryCache',
+    'QueryCacheEntry',
+    'get_query_cache',
+    'cache_result',
+    'cache_embedding',
+    'cache_with_ttl',
+    'cache_rag_query',
+    'cache_document_processing',
+    'CacheMiddleware',
+    'get_cache_middleware',
+
+    # 扩展模块
+    'PluginManager',
+    'ExtensionPointRegistry',
+    'RAGExtensionPoints',
+    'AutoScaler',
+    'get_plugin_manager',
+    'get_extension_registry',
+    'get_rag_extensions',
+    'get_auto_scaler',
+
+    # 生产配置
+    'ProductionConfigManager',
+    'SecurityConfig',
+    'PerformanceConfig',
+    'MonitoringConfig',
+    'get_production_config'
 ]
 
 # 应用服务层导出

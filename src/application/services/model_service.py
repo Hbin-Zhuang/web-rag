@@ -125,7 +125,7 @@ class ModelService:
                 f"🔧 状态: {'就绪' if app_state.qa_chain else '需要初始化'}"
             ]
 
-            return "\\n".join(status_parts)
+            return "\n".join(status_parts)
 
         except Exception as e:
             return f"❌ 获取模型状态失败: {str(e)}"
@@ -175,7 +175,7 @@ class ModelService:
             available_models = self.get_available_models()
             current_model = self.get_current_model()
 
-            info_parts = ["## 🤖 可用模型信息\\n"]
+            info_parts = ["## 🤖 可用模型信息\n"]
 
             for model in available_models:
                 model_info = self._model_metadata.get(model, {})
@@ -183,14 +183,14 @@ class ModelService:
                 is_recommended = " 🌟" if model_info.get('recommended', False) else ""
 
                 info_parts.append(
-                    f"**{model_info.get('display_name', model)}{is_current}{is_recommended}**\\n"
-                    f"- 描述: {model_info.get('description', '标准AI模型')}\\n"
-                    f"- 最大token: {model_info.get('max_tokens', '未知')}\\n"
+                    f"**{model_info.get('display_name', model)}{is_current}{is_recommended}**\n"
+                    f"- 描述: {model_info.get('description', '标准AI模型')}\n"
+                    f"- 最大token: {model_info.get('max_tokens', '未知')}\n"
                 )
 
-            info_parts.append("\\n🌟 = 推荐模型")
+            info_parts.append("\n🌟 = 推荐模型")
 
-            return "\\n".join(info_parts)
+            return "\n".join(info_parts)
 
         except Exception as e:
             return f"❌ 获取模型信息失败: {str(e)}"

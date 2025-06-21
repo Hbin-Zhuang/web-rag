@@ -107,8 +107,9 @@ class ConfigurationService(IConfigurationService):
 
             # 模型配置
             "embedding_model": "models/embedding-001",
-            "chat_model": "gemini-2.0-flash",
+            "chat_model": "gemini-2.5-flash-preview-05-20",
             "fallback_models": [
+                "gemini-2.5-flash-preview-05-20",
                 "gemini-2.0-flash",
                 "gemini-2.0-flash-lite",
                 "gemini-1.5-flash",
@@ -144,7 +145,7 @@ class ConfigurationService(IConfigurationService):
 
             # UI配置
             "gradio_server_name": "127.0.0.1",
-            "gradio_server_port": 7862,
+            "gradio_server_port": 7860,
             "gradio_debug": True,
 
             # 日志配置

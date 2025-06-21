@@ -77,13 +77,13 @@ class MainUIController(UIController):
         try:
             # 创建主界面
             with gr.Blocks(
-                title="Web RAG 系统 (重构版 v2.0)",
+                title="Web RAG 系统 v4.0 (企业级版)",
                 theme=gr.themes.Soft()
             ) as self.demo:
 
                 # 标题和说明
-                gr.Markdown("# 🚀 Web RAG 系统 (重构版 v2.0)")
-                gr.Markdown("基于 Google Gemini 的智能文档问答系统 - 采用分层架构设计")
+                gr.Markdown("# 🚀 Web RAG 系统 v4.0 (企业级版)")
+                gr.Markdown("基于 Google Gemini 的智能文档问答系统 - 企业级性能优化与扩展性增强")
 
                 # 渲染各个Tab页面
                 self.upload_tab.render()
@@ -161,9 +161,9 @@ class MainUIController(UIController):
             return
 
         try:
-            print("🚀 启动 Web RAG 系统 (重构版 v2.0)...")
+            print("🚀 启动 Web RAG 系统 v4.0 (企业级版)...")
             print(f"📋 API 密钥状态: {'✅ 已配置' if os.getenv('GOOGLE_API_KEY') else '❌ 未配置'}")
-            print(f"🏗️ 架构: 分层架构 + 组件化UI")
+            print(f"🏗️ 架构: 企业级分层架构 + 性能优化 + 扩展性增强")
             print(f"🎯 当前模型: {self.model_service.get_current_model()}")
 
             # 检测运行环境
@@ -176,7 +176,7 @@ class MainUIController(UIController):
                 # 本地开发环境配置
                 default_kwargs = {
                     "server_name": "127.0.0.1",
-                    "server_port": 7862,  # 使用新端口
+                    "server_port": 7860,
                     "share": False,
                     "show_error": True,
                     "inbrowser": False,

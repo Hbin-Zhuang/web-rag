@@ -89,23 +89,23 @@ class StatusTabController(TabController):
 
             # 构建状态显示
             status = f"""
-## 🚀 Web RAG 系统状态 (v2.0 重构版)
+## 🚀 Web RAG 系统状态 (v4.0 企业级版)
 
 ---
 
 ## 📊 系统概览
 
-**架构版本**: v2.0 分层架构
+**架构版本**: v4.0 企业级架构 (性能优化与扩展性增强)
 
-**运行状态**: {'🟢 正常运行' if state_info['vectorstore_ready'] or state_info['qa_chain_ready'] else '🟡 待机状态'}
+**运行状态**: {'🟢 正常运行' if state_info['vectorstore_initialized'] or state_info['qa_chain_initialized'] else '🟡 待机状态'}
 
 **当前模型**: {state_info['current_model']}
 
-**向量库状态**: {'✅ 已就绪' if state_info['vectorstore_ready'] else '⏳ 未初始化'}
+**向量库状态**: {'✅ 已就绪' if state_info['vectorstore_initialized'] else '⏳ 未初始化'}
 
-**问答链状态**: {'✅ 已就绪' if state_info['qa_chain_ready'] else '⏳ 未初始化'}
+**问答链状态**: {'✅ 已就绪' if state_info['qa_chain_initialized'] else '⏳ 未初始化'}
 
-**已上传文件**: {len(state_info['uploaded_files'])} 个
+**已上传文件**: {state_info['uploaded_files_count']} 个
 
 **最后更新**: {datetime.fromisoformat(state_info['last_update']).strftime('%Y-%m-%d %H:%M:%S')}
 
@@ -122,6 +122,7 @@ class StatusTabController(TabController):
 
 ## 🔧 技术栈
 
+### 🧠 核心组件
 **LLM**: Google Gemini (当前: {state_info['current_model']})
 
 **嵌入模型**: Google Embedding-001
@@ -130,31 +131,32 @@ class StatusTabController(TabController):
 
 **框架**: LangChain + Gradio
 
-**架构**: 分层架构 (服务层 + 状态管理)
+### 🏗️ 架构特性 (v4.0)
+**分层架构**: 应用层 + 服务层 + 基础设施层
+
+**性能监控**: 实时指标收集 + 健康检查
+
+**智能缓存**: 多级缓存策略 + 自动优化
+
+**扩展框架**: 插件系统 + 动态扩展点
+
+**生产就绪**: 企业级配置 + 运维友好
 
 ---
 
 ## 🚀 支持的 Gemini 模型
 
-**最新 2.5 系列 (Preview)**
-- `gemini-2.5-flash-preview-05-20` - 最新 Flash，支持思维链推理
+### 📈 可用模型列表
+{chr(10).join([f'- `{model}` ⭐' if model == state_info['current_model'] else f'- `{model}`' for model in state_info['available_models']])}
 
-**稳定 2.0 系列**
-- `gemini-2.0-flash` - 下一代特性，生产环境推荐
-- `gemini-2.0-flash-lite` - 成本优化版，高频调用
-
-**备用 1.5 系列**
-- `gemini-1.5-flash` - 快速多模态处理
-- `gemini-1.5-pro` - 复杂推理任务
-
----
-
-## 💡 模型选择策略
+### 💡 模型选择策略
 
 系统会自动按优先级尝试模型：
 1. **优先**: 最新 2.5 系列（性能最佳）
 2. **备选**: 稳定 2.0 系列（生产可靠）
 3. **兜底**: 1.5 系列（确保可用性）
+
+⭐ = 推荐模型
 
 ---
 
