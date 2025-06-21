@@ -149,6 +149,11 @@ class ApplicationState:
         with self._state_lock:
             return self._uploaded_files.copy()
 
+    def get_uploaded_files_count(self) -> int:
+        """获取已上传文件数量"""
+        with self._state_lock:
+            return len(self._uploaded_files)
+
     def clear_uploaded_files(self):
         """清空上传文件列表"""
         with self._state_lock:

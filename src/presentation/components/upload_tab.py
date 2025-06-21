@@ -14,161 +14,131 @@ class UploadTabController(TabController):
     管理PDF文件上传、模型选择和处理状态显示
     """
 
-    def __init__(self, document_service, model_service):
+    def __init__(self, document_service, model_service, config_service, logger):
         """初始化上传Tab控制器
 
         Args:
             document_service: 文档处理服务实例
             model_service: 模型管理服务实例
+            config_service: 配置服务实例
+            logger: 日志服务实例
         """
         super().__init__("upload_tab", "📄 文档上传")
         self.document_service = document_service
         self.model_service = model_service
+        self.config_service = config_service
+        self.logger = logger
 
     def create_components(self) -> Dict[str, Any]:
         """创建上传Tab的UI组件"""
-        # 注意：这些组件将在_render_content中创建
-        # 这里返回空字典，因为Gradio组件需要在with语句内创建
         return {}
 
     def setup_events(self) -> List[Dict[str, Any]]:
         """设置事件绑定配置"""
         return [
             {
-                "component": "file_input",
+                "component": "upload_file",
                 "event": "upload",
-                "handler": "process_pdf_and_update_status",
-                "inputs": ["file_input", "model_dropdown"],
-                "outputs": ["upload_output", "model_status", "status_output", "uploaded_files_display"]
-            },
-            {
-                "component": "file_input",
-                "event": "clear",
-                "handler": "clear_file_status",
-                "inputs": [],
-                "outputs": ["upload_output"]
-            },
-            {
-                "component": "model_dropdown",
-                "event": "change",
-                "handler": "switch_model",
-                "inputs": ["model_dropdown"],
-                "outputs": ["model_status", "model_dropdown"]
+                "handler": "process_document_with_model",
+                "inputs": ["upload_file", "model_dropdown"],
+                "outputs": ["upload_status", "uploaded_files_display"]
             }
         ]
 
     def _render_content(self) -> None:
         """渲染上传Tab页面内容"""
-        gr.Markdown("### 上传 PDF 文档")
-        gr.Markdown("**注意**: 上传后请等待处理完成，状态会显示在下方")
+        gr.Markdown("## 上传 PDF 文档")
+        gr.Markdown("注意: 上传后请等待处理完成，状态会显示在下方")
 
         with gr.Row():
             with gr.Column(scale=2):
-                # 文件上传组件
-                self.components["file_input"] = gr.File(
-                    label="选择 PDF 文件",
-                    file_types=[".pdf"]
+                self.components["upload_file"] = gr.File(
+                    label="📄 选择 PDF 文件",
+                    file_types=[".pdf"],
+                    type="filepath"
                 )
-
-                # 处理状态显示
-                self.components["upload_output"] = gr.Textbox(
-                    label="处理状态",
-                    lines=6,
-                    interactive=False,
-                    placeholder="等待文件上传..."
-                )
-
-                # 已上传文件列表
-                self.components["uploaded_files_display"] = gr.Markdown(
-                    label="已上传文件列表",
-                    value="*暂无已上传文件*"
-                )
-
             with gr.Column(scale=1):
-                gr.Markdown("### 🤖 模型配置")
+                with gr.Group():
+                    gr.Markdown("### 🤖 模型配置")
 
-                # 模型选择下拉框
-                self.components["model_dropdown"] = gr.Dropdown(
-                    choices=self.model_service.get_available_models(),
-                    value=self.model_service.get_current_model(),
-                    label="选择 Gemini 模型",
-                    info="选择后自动切换模型"
-                )
+                    # 获取可用模型和当前模型
+                    available_models = self.config_service.get_value("fallback_models")
+                    current_model = self.config_service.get_value("chat_model")
 
-                # 模型状态显示
-                self.components["model_status"] = gr.Textbox(
-                    label="模型状态",
-                    value=self.model_service.get_model_status(),
-                    interactive=False,
-                    lines=5
-                )
+                    self.components["model_dropdown"] = gr.Dropdown(
+                        label="选择 Gemini 模型",
+                        choices=available_models,
+                        value=current_model,  # 设置默认值
+                        interactive=True
+                    )
 
-        # 预留给其他组件的引用
-        self.components["status_output"] = None  # 将在主界面中设置
+        gr.Markdown("### 处理状态")
+        self.components["upload_status"] = gr.Textbox(
+            label="状态",
+            value="等待文件上传...",
+            interactive=False
+        )
+
+        # 已上传文件列表显示 - 修改为可更新的组件
+        self.components["uploaded_files_display"] = gr.Markdown("### 暂无已上传文件")
 
     def get_event_handlers(self):
-        """获取事件处理函数
-
-        Returns:
-            包含所有事件处理函数的字典
-        """
+        """获取事件处理函数"""
         return {
-            "process_pdf_and_update_status": self._process_pdf_and_update_status,
-            "clear_file_status": self._clear_file_status,
-            "switch_model": self._switch_model
+            "process_document_with_model": self._process_document_with_model
         }
 
-    def _process_pdf_and_update_status(self, file, selected_model):
-        """处理PDF文件上传并更新状态 - 事件处理器"""
+    def _process_document_with_model(self, file_path, selected_model):
+        """处理文档上传并指定模型"""
         try:
-            if file is None:
-                return "❌ 请先选择文件", "等待文件上传...", "系统待机中", "*暂无已上传文件*"
+            if not file_path:
+                return "❌ 请先选择文件", "### 暂无已上传文件"
 
-            # 切换模型（如果需要）
-            if selected_model != self.model_service.get_current_model():
-                model_status, _ = self.model_service.switch_model(selected_model)
-            else:
-                model_status = self.model_service.get_model_status()
+            if not selected_model:
+                return "❌ 请先选择模型", "### 暂无已上传文件"
 
-            # 处理PDF文件
-            result = self.document_service.process_pdf(file.name)
+            self.logger.info(f"开始处理文档: {file_path}, 模型: {selected_model}")
 
-            # 获取更新后的状态信息
-            from src.application.services.model_service import ModelService
-            from src.application.services.document_service import DocumentService
-            from src.shared.state.application_state import ApplicationState
+            # 更新当前模型
+            if hasattr(self.model_service, 'switch_model'):
+                self.model_service.switch_model(selected_model)
 
-            # 创建状态显示（简化版，避免循环依赖）
-            state = ApplicationState()
-            files_count = len(state.get_uploaded_files())
-            status_info = f"✅ 系统运行正常\n\n📊 **文档统计**: {files_count} 个文件已处理"
+            # 使用正确的方法名处理PDF
+            result_message = self.document_service.process_pdf(file_path)
 
-            # 获取文件列表显示
-            files_display = self.document_service._get_uploaded_files_display()
+            # 获取更新后的文件列表
+            updated_files_display = self._get_uploaded_files_display()
 
-            return result, model_status, status_info, files_display
+            return result_message, updated_files_display
 
         except Exception as e:
-            error_msg = f"❌ 处理失败: {str(e)}"
-            return error_msg, self.model_service.get_model_status(), "系统遇到错误", "*暂无已上传文件*"
+            self.logger.error(f"文档处理失败: {e}")
+            return f"❌ 处理失败: {str(e)}", "### 暂无已上传文件"
 
-    def _clear_file_status(self):
-        """清除文件状态 - 事件处理器"""
-        return "等待文件上传..."
-
-    def _switch_model(self, selected_model):
-        """切换模型 - 事件处理器"""
+    def _get_uploaded_files_display(self):
+        """获取已上传文件的显示内容"""
         try:
-            model_status, current_model = self.model_service.switch_model(selected_model)
-            return model_status, current_model
+            from src.shared.state.application_state import get_application_state
+            app_state = get_application_state()
+            files = app_state.get_uploaded_files()
+
+            if not files:
+                return "### 暂无已上传文件"
+
+            file_list = ["### 📁 已上传文件\n"]
+
+            for i, file_info in enumerate(files, 1):
+                upload_time = file_info.upload_time.strftime("%Y-%m-%d %H:%M:%S")
+                file_list.append(
+                    f"**{i}. {file_info.name}**\n"
+                    f"- 📅 上传时间: {upload_time}\n"
+                    f"- 📄 页数: {file_info.pages}\n"
+                    f"- 📝 文档片段: {file_info.chunks}\n"
+                    f"- 🤖 处理模型: {file_info.model}\n"
+                )
+
+            return "\n".join(file_list)
+
         except Exception as e:
-            error_msg = f"❌ 模型切换失败: {str(e)}"
-            return error_msg, self.model_service.get_current_model()
-
-    def set_status_output_component(self, status_component):
-        """设置状态输出组件的引用
-
-        Args:
-            status_component: 系统状态显示组件
-        """
-        self.components["status_output"] = status_component
+            self.logger.error(f"获取文件列表失败: {e}")
+            return f"### ❌ 获取文件列表失败: {str(e)}"

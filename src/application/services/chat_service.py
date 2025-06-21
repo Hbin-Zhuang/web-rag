@@ -82,12 +82,28 @@ class ChatService:
                 result = qa_chain({"query": enhanced_query})
                 answer = result["result"]
 
+                # 处理参考来源
+                source_documents = result.get("source_documents", [])
+                if source_documents:
+                    sources = []
+                    for doc in source_documents[:3]:  # 最多显示3个来源
+                        src = doc.metadata.get("source", "未知")
+                        if "/" in src:
+                            src = src.split("/")[-1]  # 只取文件名
+                        sources.append(src)
+
+                    # 去重并添加到答案末尾
+                    unique_sources = list(dict.fromkeys(sources))
+                    if unique_sources:
+                        answer += f"\n\n📚 **参考来源**: {', '.join(unique_sources)}"
+
                 # 添加AI回复到内存
                 self.memory_service.add_message_to_current_session("assistant", answer)
 
                 self.logger.info("问答处理成功", extra={
                     "answer_preview": self.utility.truncate_text(answer, 100),
-                    "session_id": self.memory_service.current_session_id
+                    "session_id": self.memory_service.current_session_id,
+                    "source_count": len(source_documents)
                 })
 
             except Exception as e:

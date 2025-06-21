@@ -14,36 +14,37 @@ class ChatTabController(TabController):
     管理聊天界面、消息输入和对话历史
     """
 
-    def __init__(self, chat_service):
+    def __init__(self, chat_service, logger):
         """初始化对话Tab控制器
 
         Args:
             chat_service: 聊天服务实例
+            logger: 日志服务实例
         """
         super().__init__("chat_tab", "💬 智能对话")
         self.chat_service = chat_service
+        self.logger = logger
 
     def create_components(self) -> Dict[str, Any]:
         """创建对话Tab的UI组件"""
-        # 组件将在_render_content中创建
         return {}
 
     def setup_events(self) -> List[Dict[str, Any]]:
         """设置事件绑定配置"""
         return [
             {
-                "component": "msg_input",
+                "component": "msg",
                 "event": "submit",
-                "handler": "chat_with_pdf",
-                "inputs": ["msg_input", "chatbot"],
-                "outputs": ["chatbot", "msg_input"]
+                "handler": "chat_with_documents",
+                "inputs": ["msg", "chatbot"],
+                "outputs": ["chatbot", "msg"]
             },
             {
-                "component": "submit_btn",
+                "component": "send_btn",
                 "event": "click",
-                "handler": "chat_with_pdf",
-                "inputs": ["msg_input", "chatbot"],
-                "outputs": ["chatbot", "msg_input"]
+                "handler": "chat_with_documents",
+                "inputs": ["msg", "chatbot"],
+                "outputs": ["chatbot", "msg"]
             },
             {
                 "component": "clear_btn",
@@ -56,69 +57,57 @@ class ChatTabController(TabController):
 
     def _render_content(self) -> None:
         """渲染对话Tab页面内容"""
-        gr.Markdown("### 与文档内容对话")
-        gr.Markdown("**提示**: 请先上传并处理 PDF 文件，然后在此提问")
+        gr.Markdown("## 与文档内容对话")
+        gr.Markdown("提示: 请先上传并处理 PDF 文件，然后在此提问")
 
-        # 聊天机器人组件
         self.components["chatbot"] = gr.Chatbot(
             label="对话历史",
-            height=500,
-            placeholder="上传PDF文件后，在下方输入问题开始对话"
+            height=400
         )
 
-        # 消息输入框
-        self.components["msg_input"] = gr.Textbox(
-            label="输入消息",
-            placeholder="请输入您的问题...",
-            lines=2,
-            scale=4
-        )
-
-        # 按钮组
         with gr.Row():
-            self.components["submit_btn"] = gr.Button(
-                "发送",
-                variant="primary",
-                scale=1
+            self.components["msg"] = gr.Textbox(
+                label="输入您的问题",
+                placeholder="请输入您想要询问的问题...",
+                lines=3,
+                scale=4
             )
-            self.components["clear_btn"] = gr.Button(
-                "清除对话",
-                variant="secondary",
-                scale=1
-            )
+            with gr.Column(scale=1):
+                self.components["send_btn"] = gr.Button("发送", variant="primary")
+                self.components["clear_btn"] = gr.Button("清除对话")
 
     def get_event_handlers(self):
-        """获取事件处理函数
-
-        Returns:
-            包含所有事件处理函数的字典
-        """
+        """获取事件处理函数"""
         return {
-            "chat_with_pdf": self._chat_with_pdf,
+            "chat_with_documents": self._chat_with_documents,
             "clear_chat": self._clear_chat
         }
 
-    def _chat_with_pdf(self, message, history):
-        """与PDF文档聊天 - 事件处理器"""
+    def _chat_with_documents(self, message, history):
+        """与文档对话"""
         try:
-            if not message or not message.strip():
+            if not message.strip():
                 return history, ""
 
-            # 调用聊天服务
-            response = self.chat_service.chat_with_pdf(message)
+            self.logger.info(f"处理用户问题: {message}")
 
-            # 添加到聊天历史
-            history = history or []
-            history.append([message, response])
+            # 使用正确的方法名 chat_with_pdf
+            response, updated_history = self.chat_service.chat_with_pdf(message, history or [])
 
-            return history, ""  # 清空输入框
+            return updated_history, ""
 
         except Exception as e:
-            error_response = f"❌ 聊天失败: {str(e)}"
+            self.logger.error(f"对话处理失败: {e}")
+            error_response = f"抱歉，处理您的问题时发生错误: {str(e)}"
             history = history or []
             history.append([message, error_response])
             return history, ""
 
     def _clear_chat(self):
-        """清除聊天历史 - 事件处理器"""
-        return []  # 返回空列表清除chatbot内容
+        """清空对话"""
+        try:
+            self.chat_service.clear_conversation_history()
+            return []
+        except Exception as e:
+            self.logger.error(f"清空对话失败: {e}")
+            return []
