@@ -109,7 +109,7 @@ class MainUIController(UIController):
 
                     # 获取可用模型和当前模型
                     available_models = self.config_service.get_value("fallback_models")
-                    current_model = self.config_service.get_value("chat_model")
+                    current_model = self.model_service.get_current_model()  # 使用model_service获取当前模型
 
                     self.model_dropdown = gr.Dropdown(
                         label="选择 Gemini 模型",
@@ -411,7 +411,7 @@ class MainUIController(UIController):
     def _init_model_dropdown(self):
         """初始化模型下拉框的默认值"""
         try:
-            current_model = self.config_service.get_value("chat_model")
+            current_model = self.model_service.get_current_model()  # 使用model_service获取当前模型
             return current_model
         except Exception as e:
             self.logger.error(f"获取默认模型失败: {e}")

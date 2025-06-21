@@ -63,7 +63,7 @@ class UploadTabController(TabController):
 
                     # 获取可用模型和当前模型
                     available_models = self.config_service.get_value("fallback_models")
-                    current_model = self.config_service.get_value("chat_model")
+                    current_model = self.model_service.get_current_model()  # 使用model_service获取当前模型
 
                     self.components["model_dropdown"] = gr.Dropdown(
                         label="选择 Gemini 模型",
