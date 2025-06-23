@@ -119,9 +119,18 @@ class ChatService:
             # 更新对话历史
             history.append([message, answer])
 
-            # 定期保存会话
-            if len(history) % 5 == 0:  # 每5轮对话保存一次
-                self.memory_service.save_current_session()
+            # 定期保存会话：按服务器端 MemoryService 的总消息计数判断
+            try:
+                total_msgs = self.memory_service.get_current_session_info().get("message_count", 0)
+                # 一问一答计为 2 条消息；当对话轮次达到 5（即 10 条消息）时保存
+                if total_msgs % 10 == 0 and total_msgs != 0:
+                    self.logger.info("达到 5 轮对话，自动持久化会话", extra={
+                        "total_messages": total_msgs,
+                        "session_id": self.memory_service.current_session_id
+                    })
+                    self.memory_service.save_current_session()
+            except Exception as e:
+                self.logger.error("自动保存会话失败", exception=e)
 
             return answer, history
 
