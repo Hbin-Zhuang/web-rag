@@ -47,14 +47,15 @@ class UploadTabController(TabController):
 
     def _render_content(self) -> None:
         """渲染上传Tab页面内容"""
-        gr.Markdown("## 上传 PDF 文档")
+        gr.Markdown("## 上传文档")
+        gr.Markdown("**支持格式**: PDF、Word(.docx)、Excel(.xlsx)、PowerPoint(.pptx)、Markdown(.md)、文本(.txt)")
         gr.Markdown("注意: 上传后请等待处理完成，状态会显示在下方")
 
         with gr.Row():
             with gr.Column(scale=2):
                 self.components["upload_file"] = gr.File(
-                    label="📄 选择 PDF 文件",
-                    file_types=[".pdf"],
+                    label="📄 选择文档文件",
+                    file_types=[".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md"],
                     type="filepath"
                 )
             with gr.Column(scale=1):
@@ -103,8 +104,8 @@ class UploadTabController(TabController):
             if hasattr(self.model_service, 'switch_model'):
                 self.model_service.switch_model(selected_model)
 
-            # 使用正确的方法名处理PDF
-            result_message = self.document_service.process_pdf(file_path)
+            # 使用统一的文档处理方法
+            result_message = self.document_service.process_document(file_path)
 
             # 获取更新后的文件列表
             updated_files_display = self._get_uploaded_files_display()

@@ -40,7 +40,7 @@ short_description: 基于 LangChain 和 Gemini 的现代化 RAG 系统 (v4.0)
 - 📊 **结构化日志**: 高效的日志记录和查询
 
 ### 🛡️ 可靠性
-- 🔍 **智能文档解析**: 支持 PDF 文档上传和自动解析
+- 🔍 **智能文档解析**: 支持多种文档格式(PDF、Word、Excel、PPT、Markdown、文本)上传和自动解析
 - 🧠 **语义检索**: 基于向量相似性的智能文档检索
 - 💬 **多轮对话**: 支持上下文感知的连续对话
 - 🎨 **美观界面**: 基于 Gradio 的用户友好界面
@@ -57,14 +57,14 @@ short_description: 基于 LangChain 和 Gemini 的现代化 RAG 系统 (v4.0)
 ### 1. 文档上传界面
 ![文档上传](images/upload-interface.png)
 
-系统提供直观的文档上传界面，支持拖拽上传和点击选择文件。
+系统提供直观的文档上传界面，支持多种文档格式（PDF、Word、Excel、PPT、Markdown、文本），支持拖拽上传和点击选择文件。
 
 ### 2. 文档处理流程
 ![文档处理](images/processing-status.png)
 
-上传PDF后，系统会自动进行：
-- ✅ PDF文档解析（104页文档）
-- 📄 文本分块处理（109个文档片段）
+上传文档后，系统会自动进行：
+- ✅ 多格式文档解析（PDF、Word、Excel、PPT等）
+- 📄 文本分块处理（智能段落分割）
 - 🔍 向量数据库创建
 - 🤖 QA链初始化
 
@@ -148,6 +148,9 @@ cd web-rag
 python3 -m venv .venv
 source .venv/bin/activate  # macOS/Linux
 # .venv\Scripts\activate  # Windows
+
+# 退出虚拟环境
+deactivate
 ```
 
 3. **安装依赖**
@@ -184,7 +187,7 @@ python app.py
 ## 🎯 使用指南
 
 ### 1. 上传文档
-- 在"文档上传"标签页选择PDF文件
+- 在"文档上传"标签页选择文档文件（支持PDF、Word、Excel、PPT、Markdown、文本格式）
 - 点击"开始处理"按钮
 - 等待系统完成文档解析和向量化
 
@@ -283,7 +286,7 @@ https://huggingface.co/spaces/[您的用户名]/[Space名称]
 - **🤖 Google Gemini**: 大语言模型和嵌入模型
 - **🔍 ChromaDB**: 向量数据库
 - **🎨 Gradio**: Web 界面框架
-- **📄 PyPDF**: PDF 文档处理
+- **📄 Unstructured**: 多格式文档处理（PDF、Word、Excel、PPT、Markdown、文本）
 - **🐍 Python 3.8+**: 编程语言
 
 ## 🔧 开发指南

@@ -22,6 +22,7 @@
 | `MAX_TOKENS` | `1000` | 模型回复的最大token数 |
 | `MAX_HISTORY_LENGTH` | `10` | 对话历史保留的消息数量 |
 | `MAX_FILE_SIZE_MB` | `50` | 允许上传的最大文件大小（MB）|
+| `ALLOWED_FILE_TYPES` | `[".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md"]` | 支持的文档格式列表 |
 | `CHROMA_DB_PATH` | `./chroma_db` | 向量数据库存储路径 |
 
 ### 开发调试配置
@@ -196,6 +197,7 @@ MAX_FILE_SIZE_MB=200
 ```env
 # 限制文件大小和类型
 MAX_FILE_SIZE_MB=50
+ALLOWED_FILE_TYPES=".pdf,.docx,.xlsx,.pptx,.txt,.md"
 # 文档类型验证在代码中处理
 ```
 

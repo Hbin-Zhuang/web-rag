@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-基于 LangChain 和 Gemini 的现代化 RAG 系统，采用**分层架构设计**，经过5个阶段的重构，实现了专业的可维护性、可扩展性和可靠性。支持本地 PDF 文档读取、Web UI 展示，并可部署到 Hugging Face Spaces。
+基于 LangChain 和 Gemini 的现代化 RAG 系统，采用**分层架构设计**，经过重构，实现了专业的可维护性、可扩展性和可靠性。支持多种文档格式（PDF、Word、Excel、PPT、Markdown、文本）处理、Web UI 展示，并可部署到 Hugging Face Spaces。
 
 ## 架构重构升级 (v4.0)
 
@@ -21,7 +21,7 @@
 - **LLM**: Google Gemini (langchain-google-genai)
 - **向量数据库**: ChromaDB (本地存储)
 - **Web界面**: Gradio (HF Spaces 原生支持)
-- **PDF处理**: PyPDFLoader + RecursiveCharacterTextSplitter
+- **文档处理**: Unstructured (多格式文档处理) + RecursiveCharacterTextSplitter
 - **嵌入模型**: GoogleGenerativeAIEmbeddings
 - **架构模式**: 分层架构 + 服务模式 + 依赖注入 + 状态管理
 
@@ -182,8 +182,8 @@ class MemoryService(IMemoryService):
 #### 3. DocumentService - 文档处理服务 (增强)
 **文件**: `src/application/services/document_service.py`
 
-**功能**: 封装PDF文档处理逻辑
-- PDF处理和向量化
+**功能**: 封装多种文档格式处理逻辑
+- 多格式文档处理（PDF、Word、Excel、PPT、Markdown、文本）和向量化
 - 向量存储创建/更新
 - 文件状态管理
 - 系统状态获取

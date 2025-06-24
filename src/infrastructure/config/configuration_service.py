@@ -131,7 +131,7 @@ class ConfigurationService(IConfigurationService):
 
             # 文件上传配置
             "max_file_size_mb": 50,
-            "allowed_file_types": [".pdf"],
+            "allowed_file_types": [".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md"],
             "upload_temp_dir": "./uploads",
 
             # 对话配置

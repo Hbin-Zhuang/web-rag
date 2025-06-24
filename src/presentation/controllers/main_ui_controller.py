@@ -93,14 +93,15 @@ class MainUIController(UIController):
 
     def _build_upload_tab(self):
         """构建上传Tab"""
-        gr.Markdown("## 上传 PDF 文档")
+        gr.Markdown("## 上传文档")
+        gr.Markdown("**支持格式**: PDF、Word(.docx)、Excel(.xlsx)、PowerPoint(.pptx)、Markdown(.md)、文本(.txt)")
         gr.Markdown("注意: 上传后请等待处理完成，状态会显示在下方")
 
         with gr.Row():
             with gr.Column(scale=2):
                 self.upload_file = gr.File(
-                    label="📄 选择 PDF 文件",
-                    file_types=[".pdf"],
+                    label="📄 选择文档文件",
+                    file_types=[".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md"],
                     type="filepath"
                 )
             with gr.Column(scale=1):
@@ -130,7 +131,7 @@ class MainUIController(UIController):
     def _build_chat_tab(self):
         """构建聊天Tab"""
         gr.Markdown("## 与文档内容对话")
-        gr.Markdown("提示: 请先上传并处理 PDF 文件，然后在此提问")
+        gr.Markdown("提示: 请先上传并处理文档文件，然后在此提问")
 
         self.chatbot = gr.Chatbot(
             label="对话历史",
@@ -245,8 +246,8 @@ class MainUIController(UIController):
             if hasattr(self.model_service, 'switch_model'):
                 self.model_service.switch_model(selected_model)
 
-            # 处理PDF
-            result_message = self.document_service.process_pdf(file_path)
+            # 处理文档
+            result_message = self.document_service.process_document(file_path)
 
             # 获取更新后的文件列表
             updated_files_display = self._get_uploaded_files_display()
@@ -270,7 +271,7 @@ class MainUIController(UIController):
             app_state = get_application_state()
             if app_state.get_uploaded_files_count() == 0:
                 history = history or []
-                history.append([message, "❌ 请先上传 PDF 文档"])
+                history.append([message, "❌ 请先上传文档文件"])
                 return history, ""
 
             self.logger.info(f"处理用户问题: {message}")
@@ -335,7 +336,7 @@ class MainUIController(UIController):
 
 ## 📋 使用说明
 
-1. 在"文档上传"标签页上传 PDF 文件
+1. 在"文档上传"标签页上传文档文件 (支持PDF、Word、Excel、PPT、Markdown、文本)
 2. 等待处理完成（查看状态信息）
 3. 在"智能对话"标签页提问
 4. 系统会基于文档内容回答问题
