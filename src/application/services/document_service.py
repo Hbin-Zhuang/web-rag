@@ -6,6 +6,7 @@
 
 import os
 import tempfile
+import shutil
 from pathlib import Path
 from typing import Optional, Tuple, List
 from datetime import datetime
@@ -136,6 +137,9 @@ class DocumentService:
             texts = self._split_documents(documents)
             self.logger.info("文档分割完成", extra={"chunks": len(texts)})
 
+            # 检查是否有历史数据残留（用于用户提示）
+            has_disk_data_before = self._check_vector_store_disk_state()
+
             # 创建向量存储
             success = self._create_vector_store(texts)
             if not success:
@@ -149,7 +153,15 @@ class DocumentService:
                 "sections": len(documents),
                 "chunks": len(texts)
             })
-            return f"✅ 文档 '{file_name}' 处理完成！\\n📄 文档段落: {len(documents)}\\n📝 文档片段: {len(texts)}"
+
+            # 构建返回消息
+            result_message = f"✅ 文档 '{file_name}' 处理完成！\\n📄 文档段落: {len(documents)}\\n📝 文档片段: {len(texts)}"
+
+            # 如果清理了历史数据，添加提示信息
+            if has_disk_data_before and app_state.vectorstore is not None:
+                result_message += "\\n🧹 已自动清理历史向量数据，确保检索结果基于当前会话文档"
+
+            return result_message
 
         except Exception as e:
             error_msg = f"❌ 处理文档时发生错误: {str(e)}"
@@ -427,9 +439,9 @@ class DocumentService:
         return texts
 
     def _create_vector_store(self, texts) -> bool:
-        """创建或更新向量存储"""
+        """创建或更新向量存储（增量模式）"""
         try:
-            self.logger.info("正在创建向量数据库...")
+            self.logger.info("正在处理向量数据库...")
 
             # 验证文档片段
             if not texts:
@@ -448,24 +460,131 @@ class DocumentService:
             # 使用配置中的ChromaDB路径
             persist_directory = self.config.CHROMA_DB_PATH
 
-            # 创建向量数据库
-            vectorstore = Chroma.from_documents(
-                documents=valid_texts,
-                embedding=self.embeddings,
-                persist_directory=persist_directory
-            )
+                        # 检查应用状态和磁盘状态
+            existing_vectorstore = app_state.vectorstore
+            has_disk_data = self._check_vector_store_disk_state()
 
-            # 关键修复：将向量存储设置到应用状态中
-            app_state.vectorstore = vectorstore
+            if existing_vectorstore is None:
+                # 应用状态中没有向量存储
+                if has_disk_data:
+                    # 检测到磁盘上有历史数据，先清理以确保干净状态
+                    self.logger.warning("检测到历史向量数据残留，正在清理以确保干净状态...")
+                    if not self._clear_vector_store():
+                        self.logger.error("清理历史数据失败")
+                        return False
 
-            # 重置QA链以便使用新的向量存储
-            app_state.qa_chain = None
+                # 创建全新的向量数据库
+                self.logger.info("创建全新向量数据库...")
+                vectorstore = Chroma.from_documents(
+                    documents=valid_texts,
+                    embedding=self.embeddings,
+                    persist_directory=persist_directory
+                )
 
-            self.logger.info("向量数据库创建成功并已设置到应用状态")
+                # 设置到应用状态中
+                app_state.vectorstore = vectorstore
+                # 重置QA链以便使用新的向量存储
+                app_state.qa_chain = None
+
+                self.logger.info("向量数据库创建成功", extra={
+                    "documents_added": len(valid_texts),
+                    "operation": "create_clean",
+                    "disk_cleaned": has_disk_data
+                })
+            else:
+                # 增量添加到现有向量存储
+                self.logger.info("向已有向量数据库增量添加文档...")
+                try:
+                    # 使用 add_documents 方法增量添加
+                    existing_vectorstore.add_documents(valid_texts)
+
+                    # 确保向量存储仍在应用状态中
+                    app_state.vectorstore = existing_vectorstore
+                    # 重置QA链以便刷新检索器
+                    app_state.qa_chain = None
+
+                    self.logger.info("文档成功增量添加到向量数据库", extra={
+                        "documents_added": len(valid_texts),
+                        "operation": "add"
+                    })
+                except Exception as add_error:
+                    self.logger.error(f"增量添加失败: {str(add_error)}，尝试重新创建向量存储")
+                    # 如果增量添加失败，尝试重新创建整个向量存储
+                    vectorstore = Chroma.from_documents(
+                        documents=valid_texts,
+                        embedding=self.embeddings,
+                        persist_directory=persist_directory
+                    )
+
+                    app_state.vectorstore = vectorstore
+                    app_state.qa_chain = None
+
+                    self.logger.warning("向量数据库已重新创建（增量添加失败后的回退操作）", extra={
+                        "documents_added": len(valid_texts),
+                        "operation": "recreate_fallback"
+                    })
+
             return True
 
         except Exception as e:
-            self.logger.error(f"创建向量数据库失败: {str(e)}")
+            self.logger.error(f"向量数据库处理失败: {str(e)}")
+            return False
+
+    def _clear_vector_store(self) -> bool:
+        """清理向量存储（删除持久化数据）"""
+        try:
+            persist_directory = self.config.CHROMA_DB_PATH
+            persist_path = Path(persist_directory)
+
+            if persist_path.exists():
+                self.logger.info(f"检测到现有向量存储目录: {persist_directory}")
+
+                # 安全删除目录及所有内容
+                shutil.rmtree(persist_path)
+                self.logger.info("向量存储目录已清理", extra={
+                    "operation": "clear",
+                    "directory": str(persist_path)
+                })
+            else:
+                self.logger.info("向量存储目录不存在，无需清理")
+
+            # 重置应用状态中的向量存储
+            app_state.vectorstore = None
+            app_state.qa_chain = None
+
+            self.logger.info("向量存储状态已重置")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"清理向量存储失败: {str(e)}")
+            return False
+
+    def _check_vector_store_disk_state(self) -> bool:
+        """检查磁盘上是否存在向量存储数据"""
+        try:
+            persist_directory = self.config.CHROMA_DB_PATH
+            persist_path = Path(persist_directory)
+
+            if not persist_path.exists():
+                return False
+
+            # 检查是否包含ChromaDB相关文件
+            has_chroma_db = any([
+                (persist_path / "chroma.sqlite3").exists(),
+                any(persist_path.glob("*.sqlite3")),
+                any(persist_path.iterdir())  # 任何文件或目录
+            ])
+
+            if has_chroma_db:
+                self.logger.info("检测到磁盘上存在向量存储数据", extra={
+                    "directory": str(persist_path),
+                    "files": [f.name for f in persist_path.iterdir()]
+                })
+
+            return has_chroma_db
+
+        except Exception as e:
+            self.logger.error(f"检查向量存储磁盘状态失败: {str(e)}")
             return False
 
     def _extract_images_from_docx(self, docx_path: str) -> List[Image.Image]:
@@ -591,3 +710,21 @@ class DocumentService:
     def clear_uploaded_files(self):
         """清空上传文件记录"""
         app_state.clear_uploaded_files()
+
+    def clear_all_documents_and_storage(self) -> str:
+        """清空所有文档记录和向量存储"""
+        try:
+            # 清空上传文件记录
+            self.clear_uploaded_files()
+
+            # 清理向量存储
+            if self._clear_vector_store():
+                self.logger.info("所有文档和向量存储已清理")
+                return "✅ 已清空所有文档记录和向量存储"
+            else:
+                return "❌ 清理向量存储时发生错误"
+
+        except Exception as e:
+            error_msg = f"❌ 清理操作失败: {str(e)}"
+            self.logger.error("清理所有数据失败", exception=e)
+            return error_msg
