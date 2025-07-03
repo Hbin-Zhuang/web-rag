@@ -1,3 +1,16 @@
+---
+title: Web RAG System v4.0
+emoji: 📚
+colorFrom: blue
+colorTo: green
+sdk: gradio
+sdk_version: 4.44.0
+app_file: app.py
+pinned: false
+license: mit
+short_description: 基于 LangChain 和 Gemini 的现代化 RAG 系统（v4.0）
+---
+
 # 📚 Web RAG System
 
 基于 LangChain 和 Gemini API 的现代化 RAG 系统，采用分层架构设计，经过重构，实现了专业的可维护性、可扩展性和可靠性。支持本地文档读取、Web UI 展示，会话持久化，并可部署到 Hugging Face Spaces。
