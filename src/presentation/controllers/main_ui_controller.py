@@ -57,7 +57,7 @@ class MainUIController(UIController):
         try:
             # 创建主界面
             with gr.Blocks(
-                title="Web RAG 系统 v4.0 (专业版)",
+                title="Web RAG 系统",
                 theme=gr.themes.Soft()
             ) as self.demo:
 
@@ -445,7 +445,7 @@ class MainUIController(UIController):
             return
 
         try:
-            print("🚀 启动 Web RAG 系统 v4.0 (专业版)...")
+            print("🚀 启动 Web RAG 系统...")
             print(f"📋 API 密钥状态: {'✅ 已配置' if os.getenv('GOOGLE_API_KEY') else '❌ 未配置'}")
             print(f"🏗️ 架构: 现代化分层架构 + 性能优化 + 扩展性增强")
             print(f"🎯 当前模型: {self.model_service.get_current_model()}")

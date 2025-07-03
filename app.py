@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Web RAG 系统 v4.0 (专业版)
+Web RAG 系统
 基于 Google Gemini 的智能文档问答系统
 """
 

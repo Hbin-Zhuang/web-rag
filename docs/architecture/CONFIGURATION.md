@@ -15,7 +15,7 @@
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
 | `EMBEDDING_MODEL` | `models/embedding-001` | 嵌入模型名称 |
-| `CHAT_MODEL` | `gemini-2.0-flash-001` | 聊天模型名称 |
+| `CHAT_MODEL` | `gemini-2.5-flash-preview-05-20` | 聊天模型名称 |
 | `CHUNK_SIZE` | `1000` | 文档分块大小（字符数）|
 | `CHUNK_OVERLAP` | `200` | 文档分块重叠（字符数）|
 | `SIMILARITY_TOP_K` | `4` | 检索返回的相关文档数量 |
@@ -38,7 +38,7 @@
 
 ```bash
 # 复制环境变量模板
-cp env_example.txt .env
+cp .env_example .env
 
 # 编辑配置文件
 vim .env
@@ -143,9 +143,9 @@ MAX_FILE_SIZE_MB=200
 
 | 模型名称 | 特点 | 适用场景 |
 |----------|------|----------|
-| `gemini-2.0-flash-001` | 快速响应，成本较低 | 一般问答、原型开发 |
-| `gemini-1.5-pro-latest` | 高质量输出，推理能力强 | 复杂分析、生产环境 |
-| `gemini-1.5-flash-latest` | 平衡性能和质量 | 大多数应用场景 |
+| `gemini-2.5-flash-preview-05-20` | 最新预览版，支持长上下文(100万tokens)，多模态能力强 | 复杂文档分析、长文本处理、多轮对话 |
+| `gemini-2.0-flash` | 响应速度快，推理能力均衡，稳定性好 | 实时对话、快速问答、生产环境 |
+| `gemini-2.0-flash-lite` | 轻量化设计，延迟极低，成本最优 | 简单查询、高频调用、资源受限环境 |
 
 ### 嵌入模型选择
 
