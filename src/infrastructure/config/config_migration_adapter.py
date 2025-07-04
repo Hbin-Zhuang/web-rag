@@ -42,6 +42,23 @@ class ConfigMigrationAdapter:
     def CHUNK_OVERLAP(self) -> int:
         return self._config_service.get_value("chunk_overlap", 200)
 
+    # 语义分块配置
+    @property
+    def USE_SEMANTIC_CHUNKING(self) -> bool:
+        return self._config_service.get_value("use_semantic_chunking", True)
+
+    @property
+    def SEMANTIC_MIN_CHUNK_SIZE(self) -> int:
+        return self._config_service.get_value("semantic_min_chunk_size", 100)
+
+    @property
+    def SEMANTIC_MAX_CHUNK_SIZE(self) -> int:
+        return self._config_service.get_value("semantic_max_chunk_size", 2000)
+
+    @property
+    def FALLBACK_TO_TRADITIONAL(self) -> bool:
+        return self._config_service.get_value("fallback_to_traditional", True)
+
     # 检索配置
     @property
     def SIMILARITY_TOP_K(self) -> int:

@@ -70,13 +70,8 @@ class DocumentService:
         # 支持的文档格式
         self.supported_formats = [".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md"]
 
-        # 使用配置服务初始化文本分割器
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=self.config.CHUNK_SIZE,
-            chunk_overlap=self.config.CHUNK_OVERLAP,
-            length_function=len,
-            separators=["\n\n", "\n", " ", ""]
-        )
+        # 初始化文本分割器（支持语义分块）
+        self._init_text_splitters()
 
         # 初始化嵌入模型
         self.embeddings = GoogleGenerativeAIEmbeddings(
@@ -91,8 +86,40 @@ class DocumentService:
         self.logger.info("DocumentService 初始化完成", extra={
             "chunk_size": self.config.CHUNK_SIZE,
             "chunk_overlap": self.config.CHUNK_OVERLAP,
+            "use_semantic_chunking": self.config.USE_SEMANTIC_CHUNKING,
             "supported_formats": self.supported_formats
         })
+
+    def _init_text_splitters(self):
+        """初始化文本分割器"""
+        # 传统分块器（备用）
+        self.traditional_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=self.config.CHUNK_SIZE,
+            chunk_overlap=self.config.CHUNK_OVERLAP,
+            length_function=len,
+            separators=["\n\n", "\n", " ", ""]
+        )
+
+        # 语义分块器
+        try:
+            from .semantic_text_splitter import AdaptiveSemanticSplitter
+            self.semantic_splitter = AdaptiveSemanticSplitter(config=self.config)
+            self.logger.info("语义分块器初始化成功")
+        except ImportError as e:
+            self.logger.warning(f"语义分块器导入失败: {e}，将使用传统分块器")
+            self.semantic_splitter = None
+        except Exception as e:
+            self.logger.error(f"语义分块器初始化失败: {e}，将使用传统分块器")
+            self.semantic_splitter = None
+
+        # 根据配置选择默认分块器
+        use_semantic = self.config.USE_SEMANTIC_CHUNKING
+        if use_semantic and self.semantic_splitter:
+            self.text_splitter = self.semantic_splitter
+            self.logger.info("默认使用语义分块器")
+        else:
+            self.text_splitter = self.traditional_splitter
+            self.logger.info("默认使用传统分块器")
 
     def process_document(self, file) -> str:
         """
@@ -418,9 +445,46 @@ class DocumentService:
             return []
 
     def _split_documents(self, documents):
-        """分割文档"""
+        """智能分割文档（支持语义分块和传统分块）"""
         self.logger.info("正在分割文档...")
-        texts = self.text_splitter.split_documents(documents)
+
+        # 检查配置和分块器可用性
+        use_semantic = self.config.USE_SEMANTIC_CHUNKING
+        fallback_enabled = self.config.FALLBACK_TO_TRADITIONAL
+
+        texts = []
+        split_method = "unknown"
+
+        try:
+            if use_semantic and self.semantic_splitter:
+                # 尝试语义分块
+                self.logger.info("尝试使用语义分块器...")
+                texts = self.semantic_splitter.split_documents(documents, use_semantic=True)
+                split_method = "semantic"
+
+                # 验证语义分块结果
+                if not texts and fallback_enabled:
+                    self.logger.warning("语义分块结果为空，回退到传统分块")
+                    texts = self.traditional_splitter.split_documents(documents)
+                    split_method = "traditional_fallback"
+
+            else:
+                # 直接使用传统分块器
+                self.logger.info("使用传统分块器...")
+                texts = self.traditional_splitter.split_documents(documents)
+                split_method = "traditional"
+
+        except Exception as e:
+            self.logger.error(f"分块过程出错: {str(e)}")
+
+            if fallback_enabled and split_method != "traditional":
+                self.logger.info("错误回退到传统分块...")
+                try:
+                    texts = self.traditional_splitter.split_documents(documents)
+                    split_method = "traditional_error_fallback"
+                except Exception as fallback_error:
+                    self.logger.error(f"传统分块也失败: {str(fallback_error)}")
+                    texts = []
 
         # 如果分割后没有文档片段，检查原文档内容
         if not texts and documents:
@@ -433,10 +497,35 @@ class DocumentService:
                 if content_length > 0:
                     self.logger.info("使用原文档作为文档片段（内容较短）")
                     texts = documents
+                    split_method = "no_split"
                     break
 
-        self.logger.info(f"文档分割完成，共生成 {len(texts)} 个文档片段")
+        # 记录分块统计信息
+        chunk_stats = self._analyze_chunk_stats(texts)
+
+        self.logger.info(f"文档分割完成", extra={
+            "chunks": len(texts),
+            "split_method": split_method,
+            "avg_chunk_size": chunk_stats.get("avg_size", 0),
+            "min_chunk_size": chunk_stats.get("min_size", 0),
+            "max_chunk_size": chunk_stats.get("max_size", 0)
+        })
+
         return texts
+
+    def _analyze_chunk_stats(self, chunks) -> dict:
+        """分析分块统计信息"""
+        if not chunks:
+            return {"avg_size": 0, "min_size": 0, "max_size": 0}
+
+        sizes = [len(chunk.page_content) for chunk in chunks]
+
+        return {
+            "avg_size": sum(sizes) // len(sizes) if sizes else 0,
+            "min_size": min(sizes) if sizes else 0,
+            "max_size": max(sizes) if sizes else 0,
+            "total_chunks": len(chunks)
+        }
 
     def _create_vector_store(self, texts) -> bool:
         """创建或更新向量存储（增量模式）"""

@@ -121,6 +121,12 @@ class ConfigurationService(IConfigurationService):
             "chunk_overlap": 200,
             "max_tokens": 1000,
 
+            # 语义分块配置
+            "use_semantic_chunking": True,  # 是否启用语义分块
+            "semantic_min_chunk_size": 100,  # 语义分块最小大小
+            "semantic_max_chunk_size": 2000,  # 语义分块最大大小
+            "fallback_to_traditional": True,  # 语义分块失败时是否回退到传统方法
+
             # 检索配置
             "similarity_top_k": 4,
             "search_similarity_threshold": 0.7,

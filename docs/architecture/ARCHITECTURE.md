@@ -21,7 +21,7 @@
 - **LLM**: Google Gemini (langchain-google-genai)
 - **向量数据库**: ChromaDB (本地存储)
 - **Web界面**: Gradio (HF Spaces 原生支持)
-- **文档处理**: Unstructured (多格式文档处理) + RecursiveCharacterTextSplitter
+- **文档处理**: Unstructured (多格式文档处理) + SemanticTextSplitter (语义分块) + RecursiveCharacterTextSplitter (传统分块备用)
 - **嵌入模型**: GoogleGenerativeAIEmbeddings
 - **架构模式**: 分层架构 + 服务模式 + 依赖注入 + 状态管理
 
@@ -37,6 +37,7 @@
 │              应用层 (Application)            │
 │          src/application/services/          │
 │  ├─ DocumentService (文档处理)               │
+│  ├─ SemanticTextSplitter (语义分块)        │
 │  ├─ ChatService (聊天问答)                  │
 │  ├─ ModelService (模型管理)                 │
 │  ├─ MemoryService (内存管理)                │
@@ -76,6 +77,7 @@ web-rag/
 │   │   └── services/            # 核心业务服务
 │   │       ├── __init__.py
 │   │       ├── document_service.py       # 文档处理服务
+│   │       ├── semantic_text_splitter.py # 语义文本分块器
 │   │       ├── chat_service.py           # 聊天问答服务
 │   │       ├── model_service.py          # 模型管理服务
 │   │       ├── memory_service.py         # 内存管理服务
@@ -179,15 +181,24 @@ class MemoryService(IMemoryService):
 - 数据格式适配和接口桥接
 - 新功能的直接委托访问
 
-#### 3. DocumentService - 文档处理服务 (增强)
+#### 3. DocumentService - 文档处理服务 (增强 + 语义分块)
 **文件**: `src/application/services/document_service.py`
 
 **功能**: 封装多种文档格式处理逻辑
 - 多格式文档处理（PDF、Word、Excel、PPT、Markdown、文本）和向量化
+- **智能语义分块**: 基于句子边界和段落结构的语义感知分割
+- **自适应分块策略**: 根据文档特征自动选择最优分块方法
+- **向后兼容性**: 保留传统RecursiveCharacterTextSplitter作为备用
 - 向量存储创建/更新
 - 文件状态管理
 - 系统状态获取
 - 集成新的基础设施服务
+
+**语义分块特性**:
+- `SemanticTextSplitter`: 核心语义分块算法，保持语义完整性
+- `AdaptiveSemanticSplitter`: 自适应分块器，支持配置驱动和错误回退
+- 智能重叠处理和长文本强制分割
+- 运行时可配置的分块策略切换
 
 #### 4. ChatService - 聊天服务 (增强)
 **文件**: `src/application/services/chat_service.py`
@@ -310,6 +321,12 @@ def document_service(self) -> DocumentService
 - **依赖注入**: 全面支持构造函数依赖注入
 - **服务抽象**: 接口驱动设计，易于测试和扩展
 - **状态管理**: 线程安全的统一状态管理
+
+### 🧠 智能文档处理
+- **语义分块**: 基于句子边界和段落结构的智能分割
+- **自适应策略**: 根据文档特征自动选择最优分块方法
+- **语义完整性**: 避免在句子中间切断，保持语义连贯
+- **向后兼容**: 完全保留传统分块器功能
 
 ### 💾 持久化存储
 - **会话持久化**: JSON文件存储会话历史
