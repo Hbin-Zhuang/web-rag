@@ -141,6 +141,9 @@ dmypy.json
 # 向量数据库（不提交本地数据库文件）
 chroma_db/
 
+# 会话记录
+conversations/
+
 # 临时文件
 *.tmp
 *.log
