@@ -29,6 +29,35 @@
 | `ALLOWED_FILE_TYPES` | `[".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md"]` | 支持的文档格式列表 |
 | `CHROMA_DB_PATH` | `./chroma_db` | 向量数据库存储路径 |
 
+### LLM重排序配置
+
+| 变量名 | 默认值 | 说明 |
+|--------|--------|------|
+| `USE_RERANK` | `true` | 是否启用LLM重排序功能 |
+| `RERANK_INITIAL_K` | `8` | 初始检索文档数量（扩大检索范围）|
+| `RERANK_FINAL_K` | `4` | 最终返回文档数量 |
+| `RERANK_SCORE_THRESHOLD` | `0.6` | 相关性评分阈值（0-1之间）|
+| `RERANK_CACHE_TTL` | `3600` | 重排序结果缓存时间（秒）|
+| `RERANK_TEMPERATURE` | `0.1` | 重排序LLM温度参数 |
+| `RERANK_MAX_RETRIES` | `3` | 重排序失败重试次数 |
+
+### 多样性检索配置
+
+| 变量名 | 默认值 | 说明 |
+|--------|--------|------|
+| `USE_DIVERSITY_RETRIEVAL` | `true` | 是否启用多样性感知检索 |
+| `DIVERSITY_MAX_PER_SOURCE` | `3` | 每个文档源最多返回的片段数 |
+| `DIVERSITY_MIN_SOURCES` | `2` | 最少文档源数量 |
+
+### 文件名匹配配置
+
+| 变量名 | 默认值 | 说明 |
+|--------|--------|------|
+| `ENABLE_FILENAME_SEARCH` | `true` | 是否启用文件名搜索 |
+| `FILENAME_SEARCH_WEIGHT` | `0.3` | 文件名匹配权重（0-1之间）|
+| `SEMANTIC_SEARCH_WEIGHT` | `0.7` | 语义搜索权重（0-1之间）|
+| `MIN_FILENAME_SCORE` | `0.2` | 文件名匹配最低分数阈值 |
+
 ### 开发调试配置
 
 | 变量名 | 默认值 | 说明 |
@@ -64,6 +93,11 @@ USE_SEMANTIC_CHUNKING=true
 SEMANTIC_MIN_CHUNK_SIZE=100
 SEMANTIC_MAX_CHUNK_SIZE=1800
 
+# LLM重排序配置
+USE_RERANK=true
+RERANK_INITIAL_K=8
+RERANK_FINAL_K=4
+
 # 调试配置
 DEBUG=true
 LOG_LEVEL=DEBUG
@@ -87,6 +121,13 @@ USE_SEMANTIC_CHUNKING=true
 SEMANTIC_MIN_CHUNK_SIZE=150
 SEMANTIC_MAX_CHUNK_SIZE=2000
 FALLBACK_TO_TRADITIONAL=true
+
+# LLM重排序生产配置
+USE_RERANK=true
+RERANK_INITIAL_K=8
+RERANK_FINAL_K=4
+RERANK_SCORE_THRESHOLD=0.6
+USE_DIVERSITY_RETRIEVAL=true
 
 # 生产环境设置
 DEBUG=false

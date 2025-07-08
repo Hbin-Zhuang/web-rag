@@ -41,6 +41,8 @@
 │  ├─ ChatService (聊天问答)                  │
 │  ├─ ModelService (模型管理)                 │
 │  ├─ MemoryService (内存管理)                │
+│  ├─ RerankService (LLM重排序)              │
+│  ├─ RerankRetriever (重排序检索器)          │
 │  └─ LegacyMemoryAdapter (向后兼容)          │
 ├─────────────────────────────────────────────┤
 │               共享层 (Shared)               │
@@ -81,6 +83,9 @@ web-rag/
 │   │       ├── chat_service.py           # 聊天问答服务
 │   │       ├── model_service.py          # 模型管理服务
 │   │       ├── memory_service.py         # 内存管理服务
+│   │       ├── rerank_service.py         # LLM重排序服务
+│   │       ├── rerank_retriever.py       # 重排序检索器
+│   │       ├── enhanced_retrieval_service.py # 增强检索服务
 │   │       └── legacy_memory_adapter.py  # 向后兼容适配器
 │   ├── presentation/            # 表示层
 │   │   ├── __init__.py
@@ -107,6 +112,9 @@ web-rag/
 │       ├── utilities/           # 工具服务
 │       │   ├── __init__.py
 │       │   └── utility_service.py
+│       ├── caching/             # 缓存服务
+│       │   ├── __init__.py
+│       │   └── document_serializer.py  # 文档序列化器
 │       ├── external/            # 外部接口
 │       │   ├── __init__.py
 │       │   └── interfaces.py
@@ -229,6 +237,25 @@ class ChatService:
 - 模型状态获取
 - 模型兼容性检查
 - 模型选择信息
+
+#### 6. RerankService - LLM重排序服务
+**文件**: `src/application/services/rerank_service.py`
+
+**功能**: 使用大语言模型对检索结果进行智能重排序
+- LLM语义相关性评分
+- 多样性感知检索策略
+- 可配置的评分阈值和重试机制
+- 高效缓存机制和性能监控
+- 自动降级处理确保系统稳定性
+
+#### 7. RerankRetriever - 重排序检索器
+**文件**: `src/application/services/rerank_retriever.py`
+
+**功能**: 封装基础检索器并集成重排序功能
+- 文件名匹配增强
+- 向量检索与重排序的无缝集成
+- 支持BaseRetriever接口
+- 灵活的配置选项
 
 ### 共享层
 

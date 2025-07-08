@@ -47,6 +47,9 @@ short_description: 基于 LangChain 和 Gemini 的现代化 RAG 系统（v4.0）
 
 - 🔍 **智能文档解析**: 支持多种文档格式(PDF、Word、Excel、PPT、Markdown、文本)上传和自动解析
 - 🧠 **语义检索**: 基于向量相似性的智能文档检索
+- 🎯 **LLM重排序**: 使用大语言模型对检索结果进行智能重排序，显著提升检索准确性
+- 📊 **多样性检索**: 确保检索结果来自不同文档源，避免单一文档主导
+- 📝 **文件名匹配**: 支持基于文件名的智能匹配，提高特定文档查询准确性
 - 💬 **多轮对话**: 支持上下文感知的连续对话
 - 🎨 **美观界面**: 基于 Gradio 的用户友好界面
 - ☁️ **云端部署**: 支持 Hugging Face Spaces 一键部署
@@ -130,7 +133,10 @@ short_description: 基于 LangChain 和 Gemini 的现代化 RAG 系统（v4.0）
 | 阶段6 | ✅ 完成 | 目录结构最终整理与文档完善   | -              |
 | 阶段7 | ✅ 完成 | 性能优化与扩展性增强         | -              |
 
-📖 **详细架构**: 查看 [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) 了解完整的技术设计和模块接口
+📖 **详细文档**:
+- [系统架构](docs/architecture/ARCHITECTURE.md) - 完整的技术设计和模块接口
+- [配置指南](docs/architecture/CONFIGURATION.md) - 环境变量和性能调优
+- [LLM重排序功能](docs/rerank_usage_example.md) - 智能检索重排序使用指南
 
 ## 🚀 快速开始
 

@@ -9,6 +9,8 @@ from langchain.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from src.application.services.memory_service import MemoryService
+from src.application.services.rerank_service import RerankService
+from src.application.services.rerank_retriever import RerankRetriever
 from src.shared.state.application_state import app_state
 from src.infrastructure import get_logger, get_config
 from src.infrastructure.utilities import get_utility_service
@@ -37,8 +39,15 @@ class ChatService:
             logger_service=logger_service
         )
 
+        # 重排序服务
+        self.rerank_service = RerankService(self.config)
+
+        # 重排序配置
+        self.use_rerank = self.config.get_value("use_rerank", True)
+
         self.logger.info("ChatService 初始化完成", extra={
-            "memory_service_type": type(self.memory_service).__name__
+            "memory_service_type": type(self.memory_service).__name__,
+            "use_rerank": self.use_rerank
         })
 
     def chat_with_pdf(self, message: str, history: List[List[str]]) -> Tuple[str, List[List[str]]]:
@@ -181,22 +190,61 @@ class ChatService:
             # 获取内存变量以集成到问答链中
             memory_variables = self.memory_service.get_memory_variables()
 
+            # 创建检索器
+            retriever = self._create_retriever()
+            if not retriever:
+                self.logger.error("检索器创建失败")
+                return None
+
             # 创建问答链
             app_state.qa_chain = RetrievalQA.from_chain_type(
                 llm=llm,
                 chain_type="stuff",
-                retriever=app_state.vectorstore.as_retriever(search_kwargs={"k": 4}),
+                retriever=retriever,
                 chain_type_kwargs={
                     "prompt": self._create_prompt_template()
                 },
                 return_source_documents=True
             )
 
-            self.logger.info("问答链创建成功")
+            self.logger.info("问答链创建成功", extra={
+                "use_rerank": self.use_rerank
+            })
             return app_state.qa_chain
 
         except Exception as e:
             self.logger.error("问答链创建失败", exception=e)
+            return None
+
+    def _create_retriever(self):
+        """创建检索器"""
+        try:
+            if self.use_rerank:
+                # 创建基础检索器
+                base_retriever = app_state.vectorstore.as_retriever(
+                    search_kwargs={"k": int(self.config.get_value("rerank_initial_k", 8))}
+                )
+
+                # 创建重排序检索器
+                rerank_retriever = RerankRetriever(
+                    base_retriever=base_retriever,
+                    rerank_service=self.rerank_service,
+                    final_k=int(self.config.get_value("rerank_final_k", 4))
+                )
+
+                self.logger.info("重排序检索器创建成功")
+                return rerank_retriever
+            else:
+                # 使用基础检索器
+                basic_retriever = app_state.vectorstore.as_retriever(
+                    search_kwargs={"k": self.config.get_value("similarity_top_k", 4)}
+                )
+
+                self.logger.info("基础检索器创建成功")
+                return basic_retriever
+
+        except Exception as e:
+            self.logger.error("检索器创建失败", exception=e)
             return None
 
     def _create_llm(self):

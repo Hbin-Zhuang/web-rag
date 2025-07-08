@@ -148,6 +148,9 @@ conversations/
 *.tmp
 *.log
 
+# 缓存文件
+cache_data.json
+
 # IDE 文件
 .vscode/
 .idea/
